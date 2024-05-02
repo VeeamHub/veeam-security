@@ -26,8 +26,7 @@ This script can be used as an example to retrieve a password for a specific user
 - `cySafe`
   - _(Mandatory)_ Specifies the CyberArk Safe in which the credentials are stored.
 
-
-##Example:
+## Example:
 ```python
 Shell>python vbr-rest-api-cyberark-ccp.py -vbrUser Administrator -vbrServer win-vbr-01 -cyCCPSrv 10.10.11.101 -cyAppId CCP_Veeam_AppID -cySafe Partner-Veeam
 ```
