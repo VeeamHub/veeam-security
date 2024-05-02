@@ -11,7 +11,7 @@ Documentation and usage instructions can be found within each folder.
 
 ## ✍ Contributions
 
-
+We welcome contributions from the community! We encourage you to create [issues](https://github.com/VeeamHub/veeam-security/issues/new/choose) for Bugs & Feature Requests and submit Pull Requests for adding/updating scripts. For more detailed information, refer to our [Contributing Guide](CONTRIBUTING.md).
 
 ## 🤝🏾 License
 
