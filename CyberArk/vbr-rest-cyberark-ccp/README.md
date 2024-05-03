@@ -28,9 +28,11 @@ This script can be used as an example to retrieve a password for a specific user
 
 ## Example:
 ```python
-Shell>python vbr-rest-api-cyberark-ccp.py -vbrUser Administrator -vbrServer win-vbr-01 -cyCCPSrv 10.10.11.101 -cyAppId CCP_Veeam_AppID -cySafe Partner-Veeam
+Shell>python vbr-rest-api-cyberark-ccp.py -vbrUser Administrator -vbrServer vbr-server-01 -cyCCPSrv ccp-server-01 -cyAppId CCP_AppID -cySafe Backup-Creds
 ```
 ## Notes
+The Python modules argparse, requests and urllib3 are required. These may need to be installed using pip (Package installer for Python). Urllib3 is only required for ignoring self-signed certificates.
+
 This script has been tested with the following versions of the corresponding software:
 
 - Veeam Backup & Replication V12.1.1
