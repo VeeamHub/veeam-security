@@ -38,6 +38,8 @@ Shell>python vbr-rest-cyberark-cp.py -vbrUser Administrator -vbrServer vbr-serve
 ```
 
 ## Notes
+The Python modules argparse, requests, subprocess, os and urllib3 are required for the Python scripts. These may need to be installed using pip (Package installer for Python). Urllib3 is only required for ignoring self-signed certificates.
+
 These scripts have been tested with the following versions of the corresponding software:
 
 - Veeam Backup & Replication V12.1.1
