@@ -45,7 +45,7 @@ These scripts have been tested with the following versions of the corresponding 
 - Veeam Backup & Replication V12.1.1
 - Credential Provider ApplicationPasswordSdk 13.0
 
-**script vbr-rest-cyberark-cp-lnx.py (Python on Linux) could not be fully tested yet**
+**script vbr-rest-cyberark-cp-linux.py (Python on Linux) could not be fully tested yet**
 
 **Please note these scripts are unofficial and are not created nor supported by Veeam Software.**
 
