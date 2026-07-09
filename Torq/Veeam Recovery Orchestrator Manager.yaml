@@ -1,0 +1,2712 @@
+!!ExportedWorkflow
+apiVersion: torq.io/v2alpha
+kind: Workflow
+id: 79ffda53-d204-487c-8789-163669a93ea7
+name: Veeam Recovery Orchestrator Manager
+trigger:
+  interaction:
+    finish_strategy: CONTINUE
+    flow_timeout: 1m
+    form_group:
+      cancel_execution_when_timed_out: true
+      name: Interaction Flow
+      workflow_id: 885c6cda-35f7-454f-ad64-4d7c759e6dcb
+    form_schema:
+      parameters:
+        - name: information
+          pretty_name: Information
+          select_display_mode: DROPDOWN_DISPLAY
+          type: MARKDOWN_TEXT
+          uploadedFile: {}
+          value: "This workflow executes the Veeam Recovery Orchestrator Plan selected by
+            the user.
+
+
+            A date defines which recovery point should be used to perform the
+            operation.\ 
+
+
+            For Restore Plans the recovery location must be specified and,
+            optionally, an antivirus scan can be performed. If a virus is found,
+            the restore is canceled.
+
+
+            Only plans that have successfully passed the readiness check are
+            started otherwise the workflow is stopped.\n"
+        - buttons:
+            - text: Start
+          name: user_action_button
+          type: BUTTONS
+    form_title: Veeam Recovery Orchestrator Automation
+    show_in_sidebar: true
+playbook:
+  description: |
+    This workflow offers the possibility to execute a Recovery Orchestrator Restore Plan or a Replica Plan Failover.
+    The last restore point / the last replica is used during execution.
+  steps:
+    - name: us-docker.pkg.dev/stackpulse/public/utils/parameters_utils/workflow_parameters:1.5.0
+      id: workflow_parameters
+      env:
+        SCHEMA: |-
+          {
+              "veeam_recovery_orchestrator_integration": {
+                  "type": 17,
+                  "prettyName": "Veeam Recovery Orchestrator Integration",
+                  "description": "",
+                  "uiPlaceholder": "",
+                  "integration": {
+                      "defaultValue": "",
+                      "vendor": "veeam_recovery_orchestrator_token"
+                  }
+              },
+              "runner_name": {
+                  "type": 8,
+                  "prettyName": "Runner Name",
+                  "description": "The name of the local Torq Runner to perform Veeam Recovery Orchestrator steps.",
+                  "uiPlaceholder": ""
+              }
+          }
+        VALUES: |-
+          {
+            "veeam_recovery_orchestrator_integration": "vro_instance",
+            "runner_name": "veeam_env"
+          }
+      uuid: 460a2b97-5f37-4b3f-9030-1b3b86e3dc32
+      pretty_name: Workflow Parameters
+      options:
+        executor:
+          name: utils_workflow_parameters_v_1_3_0
+          env: {}
+          sync: true
+          disable: false
+      manifestId: e77cae6e-fb7b-52bb-b970-6798296b076d
+      isPrivate: false
+      mock_output:
+        enabled: false
+      skip: false
+      retry: {}
+    - name: us-docker.pkg.dev/stackpulse/public/utils/date_and_time_utils/get-date:4.7.0
+      id: get_current_date_and_time
+      env:
+        DATE: ""
+        DATE_FORMAT_LAYOUT: 2006-01-02T15:04:05Z07:00
+        TIME_AGO: ""
+      uuid: 02e8b11f-3d15-4a4d-aade-f84fefaa0086
+      pretty_name: Get Current Date and Time
+      options:
+        executor:
+          name: utils_infrastructure_v_1_48_0
+          env: {}
+          sync: true
+          disable: false
+      documentationUrl: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+      manifestId: 17315e0a-8c47-5c7c-b909-6624d7c5cf39
+      isPrivate: false
+      mock_output:
+        enabled: false
+      skip: false
+      retry: {}
+    - name: custom-step:2.0.0
+      id: generate_access_token
+      env:
+        SKIP_SSL_VERIFICATION: "true"
+      envFrom:
+        integrationRef: '{{ $.workflow_parameters.veeam_recovery_orchestrator_integration }}'
+      runner: '{{ $.workflow_parameters.runner_name }}'
+      uuid: 9faebf80-2fdf-46e9-91b4-3e43597171f2
+      pretty_name: Generate Access Token
+      options:
+        executor:
+          name: http_request_v_4_23_0
+          env: {}
+          sync: true
+          disable: false
+      documentationUrl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Token/operation/Token_AuthenticateRest
+      manifestId: 87870566-2add-49d7-b2a8-14ba7f447bdc
+      isPrivate: true
+      isPrivateUrl: true
+      mock_output:
+        enabled: false
+      skip: false
+      retry: {}
+    - parallel:
+        uuid: b37f96bc-bb05-48e7-9c33-808847637435
+        pretty_name: Parallel Executions
+        threads:
+          - uuid: ddb3eff7-b2d9-4e56-b343-c60845078b2f
+            steps:
+              - name: custom-step:7.0.0
+                id: list_orchestrator_plans
+                env:
+                  ACCESS_TOKEN: '{{ $.generate_access_token.api_object.access_token }}'
+                  SKIP_SSL_VERIFICATION: "true"
+                envFrom:
+                  integrationRef: '{{
+                    $.workflow_parameters.veeam_recovery_orchestrator_integration
+                    }}'
+                runner: '{{ $.workflow_parameters.runner_name }}'
+                uuid: e9f4a12b-577e-40ea-9e5d-9b8e08241315
+                pretty_name: List Orchestrator Plans
+                options:
+                  executor:
+                    name: http_request_v_4_23_0
+                    env: {}
+                    sync: true
+                    disable: false
+                documentationUrl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_GetPlans
+                manifestId: f20c21d6-3057-4fca-979a-e31ebdd50e2c
+                isPrivate: true
+                isPrivateUrl: true
+                mock_output:
+                  enabled: false
+                skip: false
+                retry: {}
+              - name: us-docker.pkg.dev/stackpulse/public/jq/extract_to_sparse_object:3.6.0
+                id: extract_plan_data_fields
+                env:
+                  INPUT: '{{ $.list_orchestrator_plans.api_object.data }}'
+                  PATHS: name,id,planType,state,planVerificationState,planMode
+                runner: veeam_env
+                uuid: 08f16510-056e-4939-95a7-3badb44b4e46
+                pretty_name: Extract Plan Data Fields
+                options:
+                  executor:
+                    name: utils_infrastructure_v_1_42_0
+                    env: {}
+                    sync: true
+                    disable: false
+                manifestId: 3a3ad7b0-62a1-5a15-8939-afe7674596a2
+                isPrivate: false
+                mock_output:
+                  enabled: false
+                skip: false
+                retry: {}
+          - uuid: 3325c341-507c-43a1-9146-97b2c8016067
+            steps:
+              - name: custom-step:2.0.0
+                id: list_recovery_locations
+                env:
+                  ACCESS_TOKEN: '{{ $.generate_access_token.api_object.access_token }}'
+                  SKIP_SSL_VERIFICATION: "true"
+                envFrom:
+                  integrationRef: '{{
+                    $.workflow_parameters.veeam_recovery_orchestrator_integration
+                    }}'
+                runner: '{{ $.workflow_parameters.runner_name }}'
+                uuid: 639a2f4d-1722-49b7-8b6b-b649ce06152d
+                pretty_name: List Recovery Locations
+                options:
+                  executor:
+                    name: http_request_v_4_23_0
+                    env: {}
+                    sync: true
+                    disable: false
+                documentationUrl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/RecoveryLocations/operation/RecoveryLocations_GetRecoveryLocations
+                manifestId: 140b9f2d-2d89-410d-b314-3b676b94d259
+                isPrivate: true
+                isPrivateUrl: true
+                mock_output:
+                  enabled: false
+                skip: false
+                retry: {}
+              - name: us-docker.pkg.dev/stackpulse/public/jq/extract_to_sparse_object:3.6.0
+                id: extract_recovery_location_fields
+                env:
+                  INPUT: '{{ $.list_recovery_locations.api_object.data }}'
+                  PATHS: name,id
+                uuid: 98c867ce-1c94-46ed-9bd2-75d0a73bdcda
+                pretty_name: Extract Recovery Location Fields
+                options:
+                  executor:
+                    name: utils_infrastructure_v_1_42_0
+                    env: {}
+                    sync: true
+                    disable: false
+                manifestId: 3a3ad7b0-62a1-5a15-8939-afe7674596a2
+                isPrivate: false
+                mock_output:
+                  enabled: false
+                skip: false
+                retry: {}
+    - name: us-docker.pkg.dev/stackpulse/public/interact/send_interaction:2.3.0
+      id: parameter_selection
+      env:
+        CASE_ID: '{{ $.metadata.case.id }}'
+        FLOW_SETTINGS: '{"name":"Interaction
+          Flow","openToOrgSso":false,"allowedToCancelExecution":false,"cancelExecutionWhenTimedOut":true}'
+        FORM_SCHEMA: '{ "parameters":
+          [{"name":"parameter_1","type":"MARKDOWN_TEXT","prettyName":"Parameter
+          1","value":"Select the Restore or Replication Plan to be
+          executed.\n\nYou must select the Recovery Location for a restore.
+          Optionally, an anti-virus scan can be performed. If a virus is found,
+          the recovery is canceled.\n\n**IMPORTANT**\nOnly plans with the status
+          \"Verified - All checks passed\" are
+          executed.","uploadedFile":{},"allowMultipleFiles":true,"selectDisplayMode":"DROPDOWN_DISPLAY"},
+          {"name":"user_input_plan","type":"SINGLE_SELECT","required":true,"prettyName":"Select
+          Plan","description":"Select the Plan to execute","optionsList":{{
+          $.list_orchestrator_plans.api_object.data.[*].name
+          }},"value":"","uploadedFile":{},"selectDisplayMode":"DROPDOWN_DISPLAY"},
+          {"name":"user_input_recovery_location","type":"SINGLE_SELECT","required":true,"prettyName":"Select
+          Recovery Location (Restore Plan only)","description":"The Recovery
+          Location to be used","optionsList":{{
+          $.list_recovery_locations.api_object.data.[*].name }},"value":"{{
+          jsonEscape $.list_recovery_locations.api_object.data.0.name
+          }}","uploadedFile":{},"allowMultipleFiles":true,"selectDisplayMode":"DROPDOWN_DISPLAY"},
+          {"name":"user_input_rp_datetime","type":"DATE","required":true,"prettyName":"Restore
+          Point Date and Time","description":"Defines a restore point date and
+          time to be used to perform the operation. Null value used to specify
+          the latest restore point.","value":"{{ jsonEscape
+          $.get_current_date_and_time.result
+          }}","uploadedFile":{},"dateTimeStructure":"DATE_TIME","allowMultipleFiles":true,"selectDisplayMode":"DROPDOWN_DISPLAY"},
+          {"name":"user_input_avscan","type":"BOOLEAN","required":true,"prettyName":"AV
+          Scan (Restore Plan only)","description":"Defines whether to scan
+          backup files for possible
+          viruses.","value":"false","uploadedFile":{},"allowMultipleFiles":true,"selectDisplayMode":"DROPDOWN_DISPLAY"},
+          {"name":"buttons","type":"BUTTONS","buttons":[{}]}]}'
+        FORM_TITLE: Specify the Plan and Recovery Location
+        HAS_NEXT: "true"
+        TIMEOUT: 1m
+      uuid: f1c6da3f-eee6-4968-bd76-4f80ad4a315a
+      pretty_name: Parameter Selection
+      options:
+        executor:
+          name: ""
+          env: {}
+          sync: false
+          disable: false
+      manifestId: 3e56af69-c229-5284-827f-bed81a8e62f6
+      isPrivate: false
+      mock_output:
+        enabled: false
+      skip: false
+      retry: {}
+    - name: us-docker.pkg.dev/stackpulse/public/utils/array_utils/array-filter:2.9.0
+      id: filter_plan_data
+      env:
+        FIELD_PATH: name
+        FILTER_ARG: '{{ $.parameter_selection.answers.user_input_plan }}'
+        FILTER_FUNC: Equals
+        INPUT: '{{ $.extract_plan_data_fields.result }}'
+      runner: veeam_env
+      uuid: 306224b9-1a0f-44bb-b19c-56ad9da87ee1
+      pretty_name: Filter Plan Data
+      options:
+        executor:
+          name: utils_infrastructure_v_1_62_0
+          env: {}
+          sync: true
+          disable: false
+      documentationUrl: https://learn.torq.io/docs/array-utilities#filter-array
+      manifestId: f857ec6d-a6e5-5fe6-a679-709b834c533c
+      isPrivate: false
+      mock_output:
+        enabled: false
+      skip: false
+      retry: {}
+    - name: us-docker.pkg.dev/stackpulse/public/utils/array_utils/array-filter:2.9.0
+      id: filter_recovery_locations_data
+      env:
+        FIELD_PATH: name
+        FILTER_ARG: '{{ $.parameter_selection.answers.user_input_recovery_location }}'
+        FILTER_FUNC: Equals
+        INPUT: '{{ $.extract_recovery_location_fields.result }}'
+      uuid: 521fb116-598e-4f52-b62b-e649cfc96f9d
+      pretty_name: Filter Recovery Locations Data
+      options:
+        executor:
+          name: utils_infrastructure_v_1_62_0
+          env: {}
+          sync: true
+          disable: false
+      documentationUrl: https://learn.torq.io/docs/array-utilities#filter-array
+      manifestId: f857ec6d-a6e5-5fe6-a679-709b834c533c
+      isPrivate: false
+      mock_output:
+        enabled: false
+      skip: false
+      retry: {}
+    - if:
+        conditions:
+          or:
+            - and:
+                - lvalue: '{{ $.filter_plan_data.result.0.planType }}'
+                  operator: EQUALS
+                  rvalue: Restore
+        then:
+          - if:
+              conditions:
+                or:
+                  - and:
+                      - lvalue: '{{ $.filter_plan_data.result.0.state }}'
+                        operator: NOT_EQUALS
+                        rvalue: RestoreComplete
+                      - lvalue: '{{ $.filter_plan_data.result.0.planVerificationState }}'
+                        operator: EQUALS
+                        rvalue: Verified
+              then:
+                - if:
+                    conditions:
+                      or:
+                        - and:
+                            - lvalue: '{{ $.filter_plan_data.result.0.planMode }}'
+                              operator: EQUALS
+                              rvalue: enabled
+                    then: []
+                    else:
+                      - name: custom-step:2.0.0
+                        id: enable_orchestrator_plan_restore
+                        env:
+                          ACCESS_TOKEN: '{{ $.generate_access_token.api_object.access_token }}'
+                          PLAN_ID: '{{ $.filter_plan_data.result.0.id }}'
+                          SKIP_SSL_VERIFICATION: "true"
+                        envFrom:
+                          integrationRef: '{{
+                            $.workflow_parameters.veeam_recovery_orchestrator_integration
+                            }}'
+                        runner: '{{ $.workflow_parameters.runner_name }}'
+                        uuid: 8e66c84a-8db8-4bb3-ab7b-bc873bd8625c
+                        pretty_name: Enable Orchestrator Plan - Restore
+                        options:
+                          executor:
+                            name: http_request_v_4_23_0
+                            env: {}
+                            sync: true
+                            disable: false
+                        documentationUrl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_Enable
+                        manifestId: f355562c-3712-4937-a860-75f4e0eba620
+                        isPrivate: true
+                        isPrivateUrl: true
+                        mock_output:
+                          enabled: false
+                        skip: false
+                        retry: {}
+                    uuid: 6b6601a1-cc25-4d5b-9b27-460b562518bf
+                    pretty_name: Check if Restore Plan is Enabled
+                - name: custom-step:6.0.0
+                  id: launch_restore_plan
+                  env:
+                    ACCESS_TOKEN: '{{ $.generate_access_token.api_object.access_token }}'
+                    PLAN_ID: '{{ $.filter_plan_data.result.0.id }}'
+                    RESTORE_LOCATION_ID: '{{ $.filter_recovery_locations_data.result.0.id }}'
+                    RESTORE_POINT_DATE: '{{ $.parameter_selection.answers.user_input_rp_datetime }}'
+                    SKIP_SSL_VERIFICATION: "true"
+                    VIRUS_SCAN: '{{ $.parameter_selection.answers.user_input_avscan }}'
+                  envFrom:
+                    integrationRef: pma_test_lab_01
+                  runner: '{{ $.workflow_parameters.runner_name }}'
+                  uuid: 5913d646-6d72-4684-8279-790ea8140eba
+                  pretty_name: Launch Restore Plan
+                  options:
+                    executor:
+                      name: http_request_v_4_23_0
+                      env: {}
+                      sync: true
+                      disable: false
+                  documentationUrl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_Restore
+                  manifestId: d445320d-a965-43b0-9c75-803571642205
+                  isPrivate: true
+                  isPrivateUrl: true
+                  mock_output:
+                    enabled: false
+                  skip: false
+                  retry: {}
+                - name: us-docker.pkg.dev/stackpulse/public/interact/send_interaction:2.3.0
+                  id: process_message_for_restore_plan
+                  env:
+                    CASE_ID: '{{ $.metadata.case.id }}'
+                    FLOW_SETTINGS: '{"name":"Interaction
+                      Flow","openToOrgSso":false,"allowedToCancelExecution":false,"cancelExecutionWhenTimedOut":true}'
+                    FORM_SCHEMA: '{ "parameters":
+                      [{"name":"information","type":"MARKDOWN_TEXT","prettyName":"Information","value":"Restore
+                      Plan **{{ jsonEscape $.filter_plan_data.result.0.name }}**
+                      started.","uploadedFile":{},"selectDisplayMode":"DROPDOWN_DISPLAY"}]}'
+                    FORM_TITLE: Processing...
+                    HAS_NEXT: "false"
+                    TIMEOUT: 1m
+                  uuid: edc7dd10-cdd7-4d7e-9d78-80aee7e9142c
+                  pretty_name: Process Message for Restore Plan
+                  options:
+                    executor:
+                      name: ""
+                      env: {}
+                      sync: false
+                      disable: false
+                  manifestId: 3e56af69-c229-5284-827f-bed81a8e62f6
+                  isPrivate: false
+                  mock_output:
+                    enabled: false
+                  skip: false
+                  retry: {}
+                - loop:
+                    key: loop_key
+                    value: loop_value
+                    steps:
+                      - name: custom-step:5.0.0
+                        id: list_plan_data_progress
+                        env:
+                          ACCESS_TOKEN: '{{ $.generate_access_token.api_object.access_token }}'
+                          PLAN_ID: '{{ $.filter_plan_data.result.0.id }}'
+                          SKIP_SSL_VERIFICATION: "true"
+                        envFrom:
+                          integrationRef: '{{
+                            $.workflow_parameters.veeam_recovery_orchestrator_integration
+                            }}'
+                        runner: '{{ $.workflow_parameters.runner_name }}'
+                        uuid: 1f307404-53fc-47ca-87f6-ba42922cff7c
+                        pretty_name: List Plan Data - Progress
+                        options:
+                          executor:
+                            name: http_request_v_4_23_0
+                            env: {}
+                            sync: true
+                            disable: false
+                        documentationUrl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_GetPlan
+                        manifestId: 874ec16e-01db-4415-820d-55a9fd1671c8
+                        isPrivate: true
+                        isPrivateUrl: true
+                        mock_output:
+                          enabled: false
+                        skip: false
+                        retry: {}
+                      - if:
+                          conditions:
+                            or:
+                              - and:
+                                  - lvalue: '{{ $.list_plan_data_progress.api_object.state }}'
+                                    operator: EQUALS
+                                    rvalue: RestoreComplete
+                          then:
+                            - break:
+                                pretty_name: Break
+                                uuid: 9079ebd7-9c6d-424c-b887-52e503cebb5f
+                          else:
+                            - wait:
+                                id: wait_restore_progress
+                                pretty_name: Wait Restore Progress
+                                uuid: 7890465f-a4f3-4fd0-b6d3-050f68829359
+                                time_unit: "1"
+                                duration: "60"
+                          uuid: 08e8ff67-fa53-410a-86a8-b74f15d836c8
+                          pretty_name: Check Restore Plan Progress
+                    uuid: 0b90e4ed-df77-4416-a02e-37f8303f6a65
+                    pretty_name: Loop - Check Restore Progress
+                    until_break: true
+              else:
+                - exit:
+                    success: "false"
+                    pretty_name: Exit Restore Plan Execution
+                    output: '{}'
+                    uuid: 92884889-e6cd-400d-a1a4-651ba93847dd
+              uuid: dfb9e8e2-10d3-48bf-b1bf-aadc3ac62e80
+              pretty_name: Check Conditions for Restore Plan
+          - name: us-docker.pkg.dev/stackpulse/public/interact/send_interaction:2.3.0
+            id: restore_end_message
+            env:
+              CASE_ID: ""
+              FLOW_SETTINGS: '{"name":"Restore
+                End","openToOrgSso":false,"allowedToCancelExecution":false,"cancelExecutionWhenTimedOut":false}'
+              FORM_SCHEMA: '{ "parameters":
+                [{"name":"information","type":"MARKDOWN_TEXT","prettyName":"Information","value":"Restore
+                Plan **{{ jsonEscape $.filter_plan_data.result.0.name }}**
+                executed
+                successfully!","uploadedFile":{},"selectDisplayMode":"DROPDOWN_DISPLAY"}]}'
+              FORM_TITLE: Process...
+              HAS_NEXT: "false"
+              TIMEOUT: 1m
+            uuid: 1a856a96-461b-424d-817e-99586c6c9d25
+            pretty_name: Restore End Message
+            options:
+              executor:
+                name: ""
+                env: {}
+                sync: false
+                disable: false
+            manifestId: 3e56af69-c229-5284-827f-bed81a8e62f6
+            isPrivate: false
+            mock_output:
+              enabled: false
+            skip: false
+            retry: {}
+          - wait:
+              id: restore_message_wait
+              pretty_name: Restore Message Wait
+              uuid: d6dc5235-2f20-4ca0-88fb-773a3ab05d34
+              time_unit: "1"
+              duration: "120"
+        else:
+          - if:
+              conditions:
+                or:
+                  - and:
+                      - lvalue: '{{ $.filter_plan_data.result.0.state }}'
+                        operator: EQUALS
+                        rvalue: Ready
+                      - lvalue: '{{ $.filter_plan_data.result.0.planVerificationState }}'
+                        operator: EQUALS
+                        rvalue: Verified
+                  - and:
+                      - lvalue: '{{ $.filter_plan_data.result.0.state }}'
+                        operator: EQUALS
+                        rvalue: Unpublished
+              then:
+                - if:
+                    conditions:
+                      or:
+                        - and:
+                            - lvalue: '{{ $.filter_plan_data.result.0.planMode }}'
+                              operator: EQUALS
+                              rvalue: enabled
+                    then: []
+                    else:
+                      - name: custom-step:2.0.0
+                        id: enable_orchestrator_plan_replica
+                        env:
+                          ACCESS_TOKEN: '{{ $.generate_access_token.api_object.access_token }}'
+                          PLAN_ID: '{{ $.filter_plan_data.result.0.id }}'
+                          SKIP_SSL_VERIFICATION: "true"
+                        envFrom:
+                          integrationRef: '{{
+                            $.workflow_parameters.veeam_recovery_orchestrator_integration
+                            }}'
+                        runner: '{{ $.workflow_parameters.runner_name }}'
+                        uuid: ab278b15-3348-47b5-9f61-304ed8d65b23
+                        pretty_name: Enable Orchestrator Plan - Replica
+                        options:
+                          executor:
+                            name: http_request_v_4_23_0
+                            env: {}
+                            sync: true
+                            disable: false
+                        documentationUrl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_Enable
+                        manifestId: f355562c-3712-4937-a860-75f4e0eba620
+                        isPrivate: true
+                        isPrivateUrl: true
+                        mock_output:
+                          enabled: false
+                        skip: false
+                        retry: {}
+                    uuid: 32008b2d-524f-4009-97e1-207bf7b915d2
+                    pretty_name: Check if Replica Plan is Enabled
+                - name: custom-step:5.0.0
+                  id: launch_failover_plan
+                  env:
+                    ACCESS_TOKEN: '{{ $.generate_access_token.api_object.access_token }}'
+                    PLAN_ID: '{{ $.filter_plan_data.result.0.id }}'
+                    RESTORE_POINT_DATE: '{{ $.parameter_selection.answers.user_input_rp_datetime }}'
+                    SKIP_SSL_VERIFICATION: "true"
+                  envFrom:
+                    integrationRef: '{{
+                      $.workflow_parameters.veeam_recovery_orchestrator_integration
+                      }}'
+                  runner: '{{ $.workflow_parameters.runner_name }}'
+                  uuid: 333dbf16-bf63-47e2-a475-88b67c36082a
+                  pretty_name: Launch Failover Plan
+                  options:
+                    executor:
+                      name: http_request_v_4_23_0
+                      env: {}
+                      sync: true
+                      disable: false
+                  documentationUrl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html#tag/Plans/operation/Plans_Failover
+                  manifestId: 440a1e03-e608-46d1-b5e6-dbef18a86f35
+                  isPrivate: true
+                  isPrivateUrl: true
+                  mock_output:
+                    enabled: false
+                  skip: false
+                  retry: {}
+                - name: us-docker.pkg.dev/stackpulse/public/interact/send_interaction:2.3.0
+                  id: launch_message_for_replica_plan
+                  env:
+                    CASE_ID: '{{ $.metadata.case.id }}'
+                    FLOW_SETTINGS: '{"name":"Interaction
+                      Flow","openToOrgSso":false,"allowedToCancelExecution":false,"cancelExecutionWhenTimedOut":true}'
+                    FORM_SCHEMA: '{ "parameters":
+                      [{"name":"information","type":"MARKDOWN_TEXT","prettyName":"Information","value":"Replica
+                      Plan **{{ jsonEscape $.filter_plan_data.result.0.name }}**
+                      started.","uploadedFile":{},"selectDisplayMode":"DROPDOWN_DISPLAY"}]}'
+                    FORM_TITLE: Process...
+                    HAS_NEXT: "false"
+                    TIMEOUT: 1m
+                  uuid: 462d8aa5-a41a-4764-91dd-b107e22c2e64
+                  pretty_name: Launch Message for Replica Plan
+                  options:
+                    executor:
+                      name: ""
+                      env: {}
+                      sync: false
+                      disable: false
+                  manifestId: 3e56af69-c229-5284-827f-bed81a8e62f6
+                  isPrivate: false
+                  mock_output:
+                    enabled: false
+                  skip: false
+                  retry: {}
+                - loop:
+                    key: loop_2_key
+                    value: loop_2_value
+                    steps:
+                      - name: custom-step:5.0.0
+                        id: list_plan_data_failover
+                        env:
+                          ACCESS_TOKEN: '{{ $.generate_access_token.api_object.access_token }}'
+                          PLAN_ID: '{{ $.filter_plan_data.result.0.id }}'
+                          SKIP_SSL_VERIFICATION: "true"
+                        envFrom:
+                          integrationRef: '{{
+                            $.workflow_parameters.veeam_recovery_orchestrator_integration
+                            }}'
+                        runner: '{{ $.workflow_parameters.runner_name }}'
+                        uuid: 8bcf540b-1404-40eb-a270-edd07cf8a846
+                        pretty_name: List Plan Data - Failover
+                        options:
+                          executor:
+                            name: http_request_v_4_23_0
+                            env: {}
+                            sync: true
+                            disable: false
+                        documentationUrl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_GetPlan
+                        manifestId: 874ec16e-01db-4415-820d-55a9fd1671c8
+                        isPrivate: true
+                        isPrivateUrl: true
+                        mock_output:
+                          enabled: false
+                        skip: false
+                        retry: {}
+                      - if:
+                          conditions:
+                            or:
+                              - and:
+                                  - lvalue: '{{ $.list_plan_data_failover.api_object.state }}'
+                                    operator: EQUALS
+                                    rvalue: FailoverComplete
+                          then:
+                            - break:
+                                pretty_name: Break
+                                uuid: 439c7435-2bcf-488c-a6df-d67a25ac7847
+                          else:
+                            - wait:
+                                id: wait_failover_progress
+                                pretty_name: Wait Failover Progress
+                                uuid: d0443a4c-a302-4cef-8af6-fc82368277a6
+                                time_unit: "1"
+                                duration: "60"
+                          uuid: 1d173f9b-7b87-451e-a73a-95011c7b6774
+                          pretty_name: Check Failover Progress
+                    uuid: bb3a0410-f511-4cc9-9e80-2e78a83a7e1c
+                    pretty_name: Loop - Check Failover Progress
+                    until_break: true
+              else:
+                - exit:
+                    success: "false"
+                    pretty_name: Exit Replica Plan Execution
+                    output: '{}'
+                    uuid: c04f08b9-358e-45d9-bee7-6f30d6cc4cd1
+              uuid: a39b210a-d55c-439f-9395-5c88a6f7ddbc
+              pretty_name: Check Conditions for Replica Plan
+          - name: us-docker.pkg.dev/stackpulse/public/interact/send_interaction:2.3.0
+            id: failover_end_message
+            env:
+              CASE_ID: ""
+              FLOW_SETTINGS: '{"name":"Failover
+                End","openToOrgSso":false,"allowedToCancelExecution":true,"cancelExecutionWhenTimedOut":false}'
+              FORM_SCHEMA: '{ "parameters":
+                [{"name":"information","type":"MARKDOWN_TEXT","prettyName":"Information","value":"Replica
+                Plan **{{ jsonEscape $.filter_plan_data.result.0.name }}**
+                executed
+                successfully!","uploadedFile":{},"selectDisplayMode":"DROPDOWN_DISPLAY"}]}'
+              FORM_TITLE: Process...
+              HAS_NEXT: "false"
+              TIMEOUT: 1m
+            uuid: db3e08b1-1eae-4a33-9722-6b20dd232373
+            pretty_name: Failover End Message
+            options:
+              executor:
+                name: ""
+                env: {}
+                sync: false
+                disable: false
+            manifestId: 3e56af69-c229-5284-827f-bed81a8e62f6
+            isPrivate: false
+            mock_output:
+              enabled: false
+            skip: false
+            retry: {}
+          - wait:
+              id: failover_message_wait
+              pretty_name: Failover Message Wait
+              uuid: 12a6f99d-57fc-4262-ace5-c65984c77f22
+              time_unit: "1"
+              duration: "120"
+        uuid: 06f5edd6-74dd-4385-be89-5d811cd4cc7c
+        pretty_name: Check Selected Plan Type
+    - exit:
+        success: "true"
+        pretty_name: Exit
+        output: '{}'
+        uuid: 53f4b96c-c179-4499-ad08-038f2e068fe8
+  output_schema: '{}'
+  tags:
+    - Veeam Recovery Orchestrator
+root: true
+---
+!!ExportedPrivateStep
+basestepid: 10de69a0-313d-5abb-9d67-71437f9d524f
+vendor:
+  id: cfcb8ed8-7f4b-4ba7-89db-fa77691a823d
+  icon: https://cdn.torq.io/vendors/veeam.svg
+  vendor: veeam recovery orchestrator
+  name: Veeam Recovery Orchestrator
+  is_private: true
+name: List Recovery Locations
+description: Retrieves a list of all configured recovery locations in Orchestrator.
+documentationurl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/RecoveryLocations/operation/RecoveryLocations_GetRecoveryLocations
+runtime:
+  image: us-docker.pkg.dev/stackpulse/public/http/request
+  imageVersion: 4.23.0
+  envs:
+    - key: REQUIRED_VARIABLES
+      value: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN"]'
+    - key: AUTHORIZATION
+      value: Bearer
+    - key: TOKEN
+      value: '{{ .ACCESS_TOKEN }}'
+    - key: URL
+      value: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/RecoveryLocations
+    - key: METHOD
+      value: GET
+    - key: HEADERS
+      value: '{}'
+    - key: PARSE_HJSON
+      value: "true"
+    - key: CONTENT_TYPE
+      value: application/json; charset=utf-8
+    - key: BODY
+      value: ""
+    - key: FAIL_ON_NON_SUCCESS_RESPONSE
+      value: "true"
+    - key: GO_TEMPLATE_BODY_PARSING
+      value: "true"
+    - key: RESPONSE_API_OBJECT_ONLY
+      value: "true"
+envs:
+  - name: IP_ADDRESS
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: REST_API_VERSION
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: ACCESS_TOKEN
+    description: Your access token, as generated by the Generate Access Token step.
+    type: string
+    required: true
+    example: '{{ $.generate_access_token.api_object.access_token }}'
+    options: {}
+  - name: SKIP_SSL_VERIFICATION
+    description: If set, request will not verify SSL certificates. Where applicable,
+      it might be better to provide a self-signed certificate using the
+      `CUSTOM_CERTIFICATES_PEM` parameter.
+    type: bool
+    default: "true"
+    options: {}
+    visibleIf: '*'
+outputs:
+  - name: api_object
+    type: json
+    example: |-
+      {
+        "total": 1,
+        "data": [
+          {
+            "id": "62deec4d-e77e-4daf-ba1d-ed898d228ae3",
+            "type": "Restore",
+            "name": "Dept01 RL",
+            "description": "Recovery location for dept01 VMs",
+            "isOriginal": false
+          }
+        ]
+      }
+integrations:
+  - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+basetype: 1
+options:
+  executor:
+    name: http_request_v_4_23_0
+    sync: true
+  outputToFile: true
+exportedstepid: 140b9f2d-2d89-410d-b314-3b676b94d259
+rawmanifest:
+  apiVersion: stackpulse.io/v1
+  kind: Step
+  metadata:
+    name: List Recovery Locations
+    imageName: custom-step
+    description: Retrieves a list of all configured recovery locations in Orchestrator.
+    type: custom
+    vendor: veeam recovery orchestrator
+    version: 2.0.0
+    featureFlag: ""
+    documentation_url: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/RecoveryLocations/operation/RecoveryLocations_GetRecoveryLocations
+    isPrivate: true
+    privateStep:
+      base: 1
+  outputs:
+    - name: api_object
+      type: json
+      example: |-
+        {
+          "total": 1,
+          "data": [
+            {
+              "id": "62deec4d-e77e-4daf-ba1d-ed898d228ae3",
+              "type": "Restore",
+              "name": "Dept01 RL",
+              "description": "Recovery location for dept01 VMs",
+              "isOriginal": false
+            }
+          ]
+        }
+  envs:
+    - name: IP_ADDRESS
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: REST_API_VERSION
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: ACCESS_TOKEN
+      description: Your access token, as generated by the Generate Access Token step.
+      type: string
+      required: true
+      example: '{{ $.generate_access_token.api_object.access_token }}'
+      options: {}
+    - name: SKIP_SSL_VERIFICATION
+      description: If set, request will not verify SSL certificates. Where applicable,
+        it might be better to provide a self-signed certificate using the
+        `CUSTOM_CERTIFICATES_PEM` parameter.
+      type: bool
+      default: "true"
+      options: {}
+      visibleIf: '*'
+  integrations:
+    - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  options:
+    executor:
+      name: http_request_v_4_23_0
+      sync: true
+    outputToFile: true
+  http:
+    imageName: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      AUTHORIZATION: Bearer
+      BODY: ""
+      CONTENT_TYPE: application/json; charset=utf-8
+      HEADERS: '{}'
+      METHOD: GET
+      PARSE_HJSON: "true"
+      REQUIRED_VARIABLES: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN"]'
+      TOKEN: '{{ .ACCESS_TOKEN }}'
+      URL: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/RecoveryLocations
+  runtime:
+    image: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      - key: REQUIRED_VARIABLES
+        value: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN"]'
+      - key: AUTHORIZATION
+        value: Bearer
+      - key: TOKEN
+        value: '{{ .ACCESS_TOKEN }}'
+      - key: URL
+        value: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/RecoveryLocations
+      - key: METHOD
+        value: GET
+      - key: HEADERS
+        value: '{}'
+      - key: PARSE_HJSON
+        value: "true"
+      - key: CONTENT_TYPE
+        value: application/json; charset=utf-8
+      - key: BODY
+        value: ""
+      - key: FAIL_ON_NON_SUCCESS_RESPONSE
+        value: "true"
+      - key: GO_TEMPLATE_BODY_PARSING
+        value: "true"
+      - key: RESPONSE_API_OBJECT_ONLY
+        value: "true"
+---
+!!ExportedPrivateStep
+basestepid: ""
+vendor:
+  id: cfcb8ed8-7f4b-4ba7-89db-fa77691a823d
+  icon: https://cdn.torq.io/vendors/veeam.svg
+  vendor: veeam recovery orchestrator
+  name: Veeam Recovery Orchestrator
+  is_private: true
+name: Launch Failover Plan
+description: Runs a failover plan with the specified ID
+documentationurl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html#tag/Plans/operation/Plans_Failover
+runtime:
+  image: us-docker.pkg.dev/stackpulse/public/http/request
+  imageVersion: 4.23.0
+  envs:
+    - key: CONTENT_TYPE
+      value: application/json; charset=utf-8
+    - key: GO_TEMPLATE_BODY_PARSING
+      value: "true"
+    - key: BODY
+      value: |-
+        {
+          "executeChainedPlans": true,
+          "protectStorageVolumes": false,
+          "restorepointDate": "{{ .RESTORE_POINT_DATE | jsonEscape }}",
+          "useLongTermRestorePoint": false
+        }
+    - key: METHOD
+      value: POST
+    - key: HEADERS
+      value: '{}'
+    - key: AUTHORIZATION
+      value: Bearer
+    - key: REQUIRED_VARIABLES
+      value: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID","RESTORE_POINT_DATE"]'
+    - key: RESPONSE_API_OBJECT_ONLY
+      value: "true"
+    - key: FAIL_ON_NON_SUCCESS_RESPONSE
+      value: "true"
+    - key: URL
+      value: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID
+        }}/Failover
+    - key: TOKEN
+      value: '{{ .ACCESS_TOKEN }}'
+    - key: PARSE_HJSON
+      value: "true"
+envs:
+  - name: IP_ADDRESS
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: REST_API_VERSION
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: ACCESS_TOKEN
+    description: Your access token, as generated by the Generate Access Token step.
+    type: string
+    required: true
+    example: '{{ $.generate_access_token.api_object.access_token }}'
+    options: {}
+  - name: SKIP_SSL_VERIFICATION
+    description: If set, request will not verify SSL certificates. Where applicable,
+      it might be better to provide a self-signed certificate using the
+      `CUSTOM_CERTIFICATES_PEM` parameter.
+    type: bool
+    default: "true"
+    options: {}
+    visibleIf: '*'
+  - name: PLAN_ID
+    description: System ID assigned to a plan.
+    type: string
+    required: true
+    example: b16cb30f-082d-479c-960f-30c15091f747
+    options: {}
+  - name: RESTORE_POINT_DATE
+    description: Defines a restore point to be used to perform the operation.
+    type: string
+    required: true
+    example: "2025-02-15T11:25:59Z"
+    options: {}
+outputs:
+  - name: api_object
+    type: json
+integrations:
+  - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+basetype: 1
+options:
+  executor:
+    name: http_request_v_4_23_0
+    env:
+      AUTHORIZATION: Bearer
+      BODY: |-
+        {
+          "executeChainedPlans": true,
+          "protectStorageVolumes": false,
+          "restorepointDate": "{{ .RESTORE_POINT_DATE | jsonEscape }}",
+          "useLongTermRestorePoint": false
+        }
+      CONTENT_TYPE: application/json; charset=utf-8
+      FAIL_ON_NON_SUCCESS_RESPONSE: "true"
+      GO_TEMPLATE_BODY_PARSING: "true"
+      HEADERS: '{}'
+      METHOD: POST
+      PARSE_HJSON: "true"
+      REQUIRED_VARIABLES: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID","RESTORE_POINT_DATE"]'
+      RESPONSE_API_OBJECT_ONLY: "true"
+      TOKEN: '{{ .ACCESS_TOKEN }}'
+      URL: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID
+        }}/Failover
+    sync: true
+  outputToFile: true
+exportedstepid: 440a1e03-e608-46d1-b5e6-dbef18a86f35
+rawmanifest:
+  apiVersion: stackpulse.io/v1
+  kind: Step
+  metadata:
+    name: Launch Failover Plan
+    imageName: custom-step
+    description: Runs a failover plan with the specified ID
+    type: custom
+    vendor: veeam recovery orchestrator
+    version: 1.0.0
+    featureFlag: ""
+    documentation_url: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html#tag/Plans/operation/Plans_Failover
+    isPrivate: true
+    privateStep:
+      base: 1
+  outputs:
+    - name: api_object
+      type: json
+  envs:
+    - name: IP_ADDRESS
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: REST_API_VERSION
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: ACCESS_TOKEN
+      description: Your access token, as generated by the Generate Access Token step.
+      type: string
+      required: true
+      example: '{{ $.generate_access_token.api_object.access_token }}'
+      options: {}
+    - name: SKIP_SSL_VERIFICATION
+      description: If set, request will not verify SSL certificates. Where applicable,
+        it might be better to provide a self-signed certificate using the
+        `CUSTOM_CERTIFICATES_PEM` parameter.
+      type: bool
+      default: "true"
+      options: {}
+      visibleIf: '*'
+    - name: PLAN_ID
+      description: System ID assigned to a plan.
+      type: string
+      required: true
+      example: b16cb30f-082d-479c-960f-30c15091f747
+      options: {}
+    - name: RESTORE_POINT_DATE
+      description: Defines a restore point to be used to perform the operation.
+      type: string
+      required: true
+      example: "2025-02-15T11:25:59Z"
+      options: {}
+  integrations:
+    - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  options:
+    executor:
+      name: http_request_v_4_23_0
+      env:
+        AUTHORIZATION: Bearer
+        BODY: |-
+          {
+            "executeChainedPlans": true,
+            "protectStorageVolumes": false,
+            "restorepointDate": "{{ .RESTORE_POINT_DATE | jsonEscape }}",
+            "useLongTermRestorePoint": false
+          }
+        CONTENT_TYPE: application/json; charset=utf-8
+        FAIL_ON_NON_SUCCESS_RESPONSE: "true"
+        GO_TEMPLATE_BODY_PARSING: "true"
+        HEADERS: '{}'
+        METHOD: POST
+        PARSE_HJSON: "true"
+        REQUIRED_VARIABLES: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID","RESTORE_POINT_DATE"]'
+        RESPONSE_API_OBJECT_ONLY: "true"
+        TOKEN: '{{ .ACCESS_TOKEN }}'
+        URL: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID
+          }}/Failover
+      sync: true
+    outputToFile: true
+  http:
+    imageName: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      AUTHORIZATION: Bearer
+      BODY: |-
+        {
+          "executeChainedPlans": true,
+          "protectStorageVolumes": false,
+          "restorepointDate": "{{ .RESTORE_POINT_DATE | jsonEscape }}",
+          "useLongTermRestorePoint": false
+        }
+      CONTENT_TYPE: application/json; charset=utf-8
+      FAIL_ON_NON_SUCCESS_RESPONSE: "true"
+      GO_TEMPLATE_BODY_PARSING: "true"
+      HEADERS: '{}'
+      METHOD: POST
+      PARSE_HJSON: "true"
+      REQUIRED_VARIABLES: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID","RESTORE_POINT_DATE"]'
+      RESPONSE_API_OBJECT_ONLY: "true"
+      TOKEN: '{{ .ACCESS_TOKEN }}'
+      URL: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID
+        }}/Failover
+---
+!!ExportedPrivateStep
+basestepid: 10de69a0-313d-5abb-9d67-71437f9d524f
+vendor:
+  id: cfcb8ed8-7f4b-4ba7-89db-fa77691a823d
+  icon: https://cdn.torq.io/vendors/veeam.svg
+  vendor: veeam recovery orchestrator
+  name: Veeam Recovery Orchestrator
+  is_private: true
+name: List Plan Data
+description: Retrieves a representation of a plan with the specified ID.
+documentationurl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_GetPlan
+runtime:
+  image: us-docker.pkg.dev/stackpulse/public/http/request
+  imageVersion: 4.23.0
+  envs:
+    - key: TOKEN
+      value: '{{ .ACCESS_TOKEN }}'
+    - key: URL
+      value: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID
+        }}
+    - key: BODY
+      value: ""
+    - key: CONTENT_TYPE
+      value: application/json; charset=utf-8
+    - key: METHOD
+      value: GET
+    - key: HEADERS
+      value: '{}'
+    - key: REQUIRED_VARIABLES
+      value: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID"]'
+    - key: AUTHORIZATION
+      value: Bearer
+    - key: PARSE_HJSON
+      value: "true"
+    - key: FAIL_ON_NON_SUCCESS_RESPONSE
+      value: "true"
+    - key: GO_TEMPLATE_BODY_PARSING
+      value: "true"
+    - key: RESPONSE_API_OBJECT_ONLY
+      value: "true"
+envs:
+  - name: SKIP_SSL_VERIFICATION
+    description: If set, request will not verify SSL certificates. Where applicable,
+      it might be better to provide a self-signed certificate using the
+      `CUSTOM_CERTIFICATES_PEM` parameter.
+    type: bool
+    default: "true"
+    options: {}
+    visibleIf: '*'
+  - name: IP_ADDRESS
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: REST_API_VERSION
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: ACCESS_TOKEN
+    description: Your access token, as generated by the Generate Access Token step.
+    type: string
+    required: true
+    example: '{{ $.generate_access_token.api_object.access_token }}'
+    options: {}
+  - name: PLAN_ID
+    description: System ID assigned to a plan.
+    type: string
+    required: true
+    example: b16cb30f-082d-479c-960f-30c15091f747
+    options: {}
+outputs:
+  - name: api_object
+    type: json
+    example: |-
+      {
+        "scheduleInfo": {
+          "virusScan": true,
+          "yaraScan": true,
+          "yaraRuleId": "333b2623-b1e1-4c30-9ab4-71d741bee1e6",
+          "id": "b16cb30f-082d-479c-960f-30c15091f747",
+          "enabled": true,
+          "timeSchedule": {
+            "scheduleMode": "OneTime",
+            "startTime": "2020-02-01T05:00:00Z",
+            "time": null,
+            "exactTime": "2020-02-01T05:00:00Z",
+            "daysOfWeek": null,
+            "monthDayType": null,
+            "dayOfMonth": null
+          },
+          "runAfterItemId": null,
+          "runAfterItemName": "",
+          "scanInfectedFlag": true,
+          "scanSuspiciousFlag": true,
+          "restorePointsCountForRansomwareScan": 10,
+          "ransomwareAction": "CancelRestore"
+        },
+        "scheduledTestsInfo": [
+          {
+            "scheduleInfo": {
+              "virusScan": false,
+              "yaraScan": false,
+              "yaraRuleId": null,
+              "id": "cb6e88da-0aef-4d76-9cb1-0aef5de37668",
+              "enabled": true,
+              "timeSchedule": {
+                "scheduleMode": "Weekly",
+                "startTime": "2020-01-10T22:00:00Z",
+                "time": {
+                  "hours": 22,
+                  "minutes": 0
+                },
+                "exactTime": null,
+                "daysOfWeek": "All",
+                "monthDayType": null,
+                "dayOfMonth": null
+              },
+              "runAfterItemId": null,
+              "runAfterItemName": "",
+              "scanInfectedFlag": true,
+              "scanSuspiciousFlag": true,
+              "restorePointsCountForRansomwareScan": 1,
+              "ransomwareAction": "CancelRestore"
+            },
+            "virtualLabId": "01514858-2196-4393-b086-ec214ec51be1",
+            "virtualLabName": "lab1",
+            "backupServerName": "vbr1",
+            "virtualLabWaitTimeMinutes": 0,
+            "keepPlanRunning": true,
+            "keepLabRunning": true,
+            "recoveryTimeObjective": 60,
+            "stopWhenRTOExceeded": true,
+            "useInstantRecovery": false,
+            "scheduleName": "test",
+            "scheduleDescription": null,
+            "id": "0cdc6ef5-9bff-45d6-9619-92ce0d5512e2",
+            "planId": "9d65db55-f3b1-4b46-a564-109d48d16ecd",
+            "planName": "Round CDP",
+            "type": "ScheduleTest"
+          }
+        ],
+        "isOriginalRecoveryLocation": null,
+        "id": "d8cf22e7-a982-485a-a3e1-a2515011f7a9",
+        "planType": "CdpReplica",
+        "recoveryLocationId": null,
+        "recoveryLocationName": null,
+        "recoveryLocationDescription": null,
+        "recoveryLocationType": "Unknown",
+        "siteScopeId": "83e8c2a8-e72d-4564-b5fc-b31a7671a44f",
+        "siteScopeName": "Admin Scope",
+        "name": "Round CDP",
+        "state": "FailoverComplete",
+        "stateName": "Failover",
+        "stateOrder": "300. Failover",
+        "planMode": "Enabled",
+        "planVerificationState": "NeedsVerified",
+        "resultName": "Complete, 5 errors, 13 warnings",
+        "lastStableState": "FailbackComplete",
+        "lastStableStateName": "Failover",
+        "previousExecutionState": "DryRun",
+        "reportTemplateId": "c689c4f1-3587-4eea-b247-0d877b90e5ea",
+        "description": "",
+        "reportDocumentFormat": "Pdf",
+        "serverName": "lab1.test.local",
+        "siteName": "lab1.test.local",
+        "nearestFailoverScheduleTime": "2020-01-27T02:53:00Z",
+        "nearestTestScheduleTime": "2020-01-24T01:55:00Z",
+        "haltedReason": "Undefined",
+        "isEditingByCurrentUser": false,
+        "currentEditingUser": "",
+        "progress": 100,
+        "lastTestResult": "MalwareIssue",
+        "lastTestTime": "2020-01-08T07:28:00Z",
+        "lastCheckResult": "Success",
+        "lastCheckTime": "2020-01-05T12:30:00Z",
+        "lastTestResultName": "Halted",
+        "lastTestResultOrderNumber": 5,
+        "lastCheckResultName": "Warning",
+        "lastCheckResultOrderNumber": 3,
+        "virtualLabId": null,
+        "contactName": "Wendy May",
+        "contactEmail": "wendy.may@company.com",
+        "contactTel": "3232556666",
+        "isRunningState": false,
+        "isStableState": true,
+        "currentRunResult": "Error",
+        "currentTestResult": "Undefined",
+        "currentCheckResult": "Undefined",
+        "definitionReportEnabled": true,
+        "definitionReportStartTime": "2020-01-01T00:00:00Z",
+        "readinessCheckEnabled": true,
+        "readinessCheckStartTime": "2020-01-01T07:00:00Z",
+        "targetRecoveryTimeObjective": 3600,
+        "currentRecoveryTimeObjective": 0,
+        "targetRecoveryPointObjective": 15,
+        "currentRecoveryPointObjective": 0,
+        "roles": [
+          "DRSiteAdmin",
+          "DRPlanAuthor",
+          "DRPlanOperator"
+        ],
+        "vendor": "Unknown",
+        "isUndoPossible": false,
+        "isReversePossible": false,
+        "containsAgentGroups": false,
+        "storageRecoveryLocations": null,
+        "groupsType": "VmGroup"
+      }
+integrations:
+  - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+basetype: 1
+options:
+  executor:
+    name: http_request_v_4_23_0
+    sync: true
+  outputToFile: true
+exportedstepid: 874ec16e-01db-4415-820d-55a9fd1671c8
+rawmanifest:
+  apiVersion: stackpulse.io/v1
+  kind: Step
+  metadata:
+    name: List Plan Data
+    imageName: custom-step
+    description: Retrieves a representation of a plan with the specified ID.
+    type: custom
+    vendor: veeam recovery orchestrator
+    version: 5.0.0
+    featureFlag: ""
+    documentation_url: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_GetPlan
+    isPrivate: true
+    privateStep:
+      base: 1
+  outputs:
+    - name: api_object
+      type: json
+      example: |-
+        {
+          "scheduleInfo": {
+            "virusScan": true,
+            "yaraScan": true,
+            "yaraRuleId": "333b2623-b1e1-4c30-9ab4-71d741bee1e6",
+            "id": "b16cb30f-082d-479c-960f-30c15091f747",
+            "enabled": true,
+            "timeSchedule": {
+              "scheduleMode": "OneTime",
+              "startTime": "2020-02-01T05:00:00Z",
+              "time": null,
+              "exactTime": "2020-02-01T05:00:00Z",
+              "daysOfWeek": null,
+              "monthDayType": null,
+              "dayOfMonth": null
+            },
+            "runAfterItemId": null,
+            "runAfterItemName": "",
+            "scanInfectedFlag": true,
+            "scanSuspiciousFlag": true,
+            "restorePointsCountForRansomwareScan": 10,
+            "ransomwareAction": "CancelRestore"
+          },
+          "scheduledTestsInfo": [
+            {
+              "scheduleInfo": {
+                "virusScan": false,
+                "yaraScan": false,
+                "yaraRuleId": null,
+                "id": "cb6e88da-0aef-4d76-9cb1-0aef5de37668",
+                "enabled": true,
+                "timeSchedule": {
+                  "scheduleMode": "Weekly",
+                  "startTime": "2020-01-10T22:00:00Z",
+                  "time": {
+                    "hours": 22,
+                    "minutes": 0
+                  },
+                  "exactTime": null,
+                  "daysOfWeek": "All",
+                  "monthDayType": null,
+                  "dayOfMonth": null
+                },
+                "runAfterItemId": null,
+                "runAfterItemName": "",
+                "scanInfectedFlag": true,
+                "scanSuspiciousFlag": true,
+                "restorePointsCountForRansomwareScan": 1,
+                "ransomwareAction": "CancelRestore"
+              },
+              "virtualLabId": "01514858-2196-4393-b086-ec214ec51be1",
+              "virtualLabName": "lab1",
+              "backupServerName": "vbr1",
+              "virtualLabWaitTimeMinutes": 0,
+              "keepPlanRunning": true,
+              "keepLabRunning": true,
+              "recoveryTimeObjective": 60,
+              "stopWhenRTOExceeded": true,
+              "useInstantRecovery": false,
+              "scheduleName": "test",
+              "scheduleDescription": null,
+              "id": "0cdc6ef5-9bff-45d6-9619-92ce0d5512e2",
+              "planId": "9d65db55-f3b1-4b46-a564-109d48d16ecd",
+              "planName": "Round CDP",
+              "type": "ScheduleTest"
+            }
+          ],
+          "isOriginalRecoveryLocation": null,
+          "id": "d8cf22e7-a982-485a-a3e1-a2515011f7a9",
+          "planType": "CdpReplica",
+          "recoveryLocationId": null,
+          "recoveryLocationName": null,
+          "recoveryLocationDescription": null,
+          "recoveryLocationType": "Unknown",
+          "siteScopeId": "83e8c2a8-e72d-4564-b5fc-b31a7671a44f",
+          "siteScopeName": "Admin Scope",
+          "name": "Round CDP",
+          "state": "FailoverComplete",
+          "stateName": "Failover",
+          "stateOrder": "300. Failover",
+          "planMode": "Enabled",
+          "planVerificationState": "NeedsVerified",
+          "resultName": "Complete, 5 errors, 13 warnings",
+          "lastStableState": "FailbackComplete",
+          "lastStableStateName": "Failover",
+          "previousExecutionState": "DryRun",
+          "reportTemplateId": "c689c4f1-3587-4eea-b247-0d877b90e5ea",
+          "description": "",
+          "reportDocumentFormat": "Pdf",
+          "serverName": "lab1.test.local",
+          "siteName": "lab1.test.local",
+          "nearestFailoverScheduleTime": "2020-01-27T02:53:00Z",
+          "nearestTestScheduleTime": "2020-01-24T01:55:00Z",
+          "haltedReason": "Undefined",
+          "isEditingByCurrentUser": false,
+          "currentEditingUser": "",
+          "progress": 100,
+          "lastTestResult": "MalwareIssue",
+          "lastTestTime": "2020-01-08T07:28:00Z",
+          "lastCheckResult": "Success",
+          "lastCheckTime": "2020-01-05T12:30:00Z",
+          "lastTestResultName": "Halted",
+          "lastTestResultOrderNumber": 5,
+          "lastCheckResultName": "Warning",
+          "lastCheckResultOrderNumber": 3,
+          "virtualLabId": null,
+          "contactName": "Wendy May",
+          "contactEmail": "wendy.may@company.com",
+          "contactTel": "3232556666",
+          "isRunningState": false,
+          "isStableState": true,
+          "currentRunResult": "Error",
+          "currentTestResult": "Undefined",
+          "currentCheckResult": "Undefined",
+          "definitionReportEnabled": true,
+          "definitionReportStartTime": "2020-01-01T00:00:00Z",
+          "readinessCheckEnabled": true,
+          "readinessCheckStartTime": "2020-01-01T07:00:00Z",
+          "targetRecoveryTimeObjective": 3600,
+          "currentRecoveryTimeObjective": 0,
+          "targetRecoveryPointObjective": 15,
+          "currentRecoveryPointObjective": 0,
+          "roles": [
+            "DRSiteAdmin",
+            "DRPlanAuthor",
+            "DRPlanOperator"
+          ],
+          "vendor": "Unknown",
+          "isUndoPossible": false,
+          "isReversePossible": false,
+          "containsAgentGroups": false,
+          "storageRecoveryLocations": null,
+          "groupsType": "VmGroup"
+        }
+  envs:
+    - name: SKIP_SSL_VERIFICATION
+      description: If set, request will not verify SSL certificates. Where applicable,
+        it might be better to provide a self-signed certificate using the
+        `CUSTOM_CERTIFICATES_PEM` parameter.
+      type: bool
+      default: "true"
+      options: {}
+      visibleIf: '*'
+    - name: IP_ADDRESS
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: REST_API_VERSION
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: ACCESS_TOKEN
+      description: Your access token, as generated by the Generate Access Token step.
+      type: string
+      required: true
+      example: '{{ $.generate_access_token.api_object.access_token }}'
+      options: {}
+    - name: PLAN_ID
+      description: System ID assigned to a plan.
+      type: string
+      required: true
+      example: b16cb30f-082d-479c-960f-30c15091f747
+      options: {}
+  integrations:
+    - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  options:
+    executor:
+      name: http_request_v_4_23_0
+      sync: true
+    outputToFile: true
+  http:
+    imageName: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      AUTHORIZATION: Bearer
+      BODY: ""
+      CONTENT_TYPE: application/json; charset=utf-8
+      HEADERS: '{}'
+      METHOD: GET
+      PARSE_HJSON: "true"
+      REQUIRED_VARIABLES: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID"]'
+      TOKEN: '{{ .ACCESS_TOKEN }}'
+      URL: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID }}
+  runtime:
+    image: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      - key: TOKEN
+        value: '{{ .ACCESS_TOKEN }}'
+      - key: URL
+        value: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID
+          }}
+      - key: BODY
+        value: ""
+      - key: CONTENT_TYPE
+        value: application/json; charset=utf-8
+      - key: METHOD
+        value: GET
+      - key: HEADERS
+        value: '{}'
+      - key: REQUIRED_VARIABLES
+        value: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID"]'
+      - key: AUTHORIZATION
+        value: Bearer
+      - key: PARSE_HJSON
+        value: "true"
+      - key: FAIL_ON_NON_SUCCESS_RESPONSE
+        value: "true"
+      - key: GO_TEMPLATE_BODY_PARSING
+        value: "true"
+      - key: RESPONSE_API_OBJECT_ONLY
+        value: "true"
+---
+!!ExportedPrivateStep
+basestepid: 10de69a0-313d-5abb-9d67-71437f9d524f
+vendor:
+  id: cfcb8ed8-7f4b-4ba7-89db-fa77691a823d
+  icon: https://cdn.torq.io/vendors/veeam.svg
+  vendor: veeam recovery orchestrator
+  name: Veeam Recovery Orchestrator
+  is_private: true
+name: Generate Access Token
+description: Generate Access Token for Veeam Recovery Orchestrator steps.
+documentationurl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Token/operation/Token_AuthenticateRest
+runtime:
+  image: us-docker.pkg.dev/stackpulse/public/http/request
+  imageVersion: 4.23.0
+  envs:
+    - key: CONTENT_TYPE
+      value: application/x-www-form-urlencoded; charset=utf-8
+    - key: AUTHORIZATION
+      value: None
+    - key: REQUIRED_VARIABLES
+      value: '["IP_ADDRESS","USERNAME","PASSWORD"]'
+    - key: URL
+      value: https://{{ .IP_ADDRESS }}/api/token
+    - key: BODY
+      value: '[{"key":"grant_type","type":"text","value":"password"},{"key":"username","type":"text","value":"{{
+        .USERNAME | jsonEscape }}"},{"key":"password","type":"text","value":"{{
+        .PASSWORD | jsonEscape }}"}]'
+    - key: METHOD
+      value: POST
+    - key: HEADERS
+      value: '{}'
+    - key: FAIL_ON_NON_SUCCESS_RESPONSE
+      value: "true"
+    - key: GO_TEMPLATE_BODY_PARSING
+      value: "true"
+    - key: RESPONSE_API_OBJECT_ONLY
+      value: "true"
+envs:
+  - name: IP_ADDRESS
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: USERNAME
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: PASSWORD
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: SKIP_SSL_VERIFICATION
+    description: If set, request will not verify SSL certificates. Where applicable,
+      it might be better to provide a self-signed certificate using the
+      `CUSTOM_CERTIFICATES_PEM` parameter.
+    type: bool
+    default: "true"
+    options: {}
+    visibleIf: '*'
+outputs:
+  - name: api_object
+    type: json
+    example: |-
+      {
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiSm9obiBEb2UiLCJpYXQiOjE1MTYyMzkwMjJ9.hqWGSaFpvbrXkOWc6lrnffhNWR19W_S1YKFBx2arWBk",
+        "token_type": "bearer",
+        "refresh_token": "iAtow6zC8+36D/wzn3DFUsgqX/qAZYIG3XPlysUzo4k=",
+        "expires_in": "899"
+      }
+integrations:
+  - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+basetype: 1
+options:
+  executor:
+    name: http_request_v_4_23_0
+    sync: true
+  outputToFile: true
+exportedstepid: 87870566-2add-49d7-b2a8-14ba7f447bdc
+rawmanifest:
+  apiVersion: stackpulse.io/v1
+  kind: Step
+  metadata:
+    name: Generate Access Token
+    imageName: custom-step
+    description: Generate Access Token for Veeam Recovery Orchestrator steps.
+    type: custom
+    vendor: veeam recovery orchestrator
+    version: 2.0.0
+    featureFlag: ""
+    documentation_url: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Token/operation/Token_AuthenticateRest
+    isPrivate: true
+    privateStep:
+      base: 1
+  outputs:
+    - name: api_object
+      type: json
+      example: |-
+        {
+          "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiSm9obiBEb2UiLCJpYXQiOjE1MTYyMzkwMjJ9.hqWGSaFpvbrXkOWc6lrnffhNWR19W_S1YKFBx2arWBk",
+          "token_type": "bearer",
+          "refresh_token": "iAtow6zC8+36D/wzn3DFUsgqX/qAZYIG3XPlysUzo4k=",
+          "expires_in": "899"
+        }
+  envs:
+    - name: IP_ADDRESS
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: USERNAME
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: PASSWORD
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: SKIP_SSL_VERIFICATION
+      description: If set, request will not verify SSL certificates. Where applicable,
+        it might be better to provide a self-signed certificate using the
+        `CUSTOM_CERTIFICATES_PEM` parameter.
+      type: bool
+      default: "true"
+      options: {}
+      visibleIf: '*'
+  integrations:
+    - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  options:
+    executor:
+      name: http_request_v_4_23_0
+      sync: true
+    outputToFile: true
+  http:
+    imageName: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      AUTHORIZATION: None
+      BODY: '[{"key":"grant_type","type":"text","value":"password"},{"key":"username","type":"text","value":"{{
+        .USERNAME | jsonEscape }}"},{"key":"password","type":"text","value":"{{
+        .PASSWORD | jsonEscape }}"}]'
+      CONTENT_TYPE: application/x-www-form-urlencoded; charset=utf-8
+      HEADERS: '{}'
+      METHOD: POST
+      REQUIRED_VARIABLES: '["IP_ADDRESS","USERNAME","PASSWORD"]'
+      URL: https://{{ .IP_ADDRESS }}/api/token
+  runtime:
+    image: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      - key: CONTENT_TYPE
+        value: application/x-www-form-urlencoded; charset=utf-8
+      - key: AUTHORIZATION
+        value: None
+      - key: REQUIRED_VARIABLES
+        value: '["IP_ADDRESS","USERNAME","PASSWORD"]'
+      - key: URL
+        value: https://{{ .IP_ADDRESS }}/api/token
+      - key: BODY
+        value: '[{"key":"grant_type","type":"text","value":"password"},{"key":"username","type":"text","value":"{{
+          .USERNAME | jsonEscape
+          }}"},{"key":"password","type":"text","value":"{{ .PASSWORD |
+          jsonEscape }}"}]'
+      - key: METHOD
+        value: POST
+      - key: HEADERS
+        value: '{}'
+      - key: FAIL_ON_NON_SUCCESS_RESPONSE
+        value: "true"
+      - key: GO_TEMPLATE_BODY_PARSING
+        value: "true"
+      - key: RESPONSE_API_OBJECT_ONLY
+        value: "true"
+---
+!!ExportedPrivateStep
+basestepid: 10de69a0-313d-5abb-9d67-71437f9d524f
+vendor:
+  id: cfcb8ed8-7f4b-4ba7-89db-fa77691a823d
+  icon: https://cdn.torq.io/vendors/veeam.svg
+  vendor: veeam recovery orchestrator
+  name: Veeam Recovery Orchestrator
+  is_private: true
+name: Launch Restore Plan
+description: Runs a restore plan with the specified ID.
+documentationurl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_Restore
+runtime:
+  image: us-docker.pkg.dev/stackpulse/public/http/request
+  imageVersion: 4.23.0
+  envs:
+    - key: BODY
+      value: |-
+        {
+          "ransomwareAction": "CancelRestore",
+          "restoreLocationId": "{{ .RESTORE_LOCATION_ID | jsonEscape }}",
+          "restorepointDate": "{{ .RESTORE_POINT_DATE | jsonEscape }}",
+          "virusScan": {{ .VIRUS_SCAN }}
+        }
+    - key: AUTHORIZATION
+      value: Bearer
+    - key: CONTENT_TYPE
+      value: application/json; charset=utf-8
+    - key: URL
+      value: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID
+        }}/Restore
+    - key: REQUIRED_VARIABLES
+      value: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID","RESTORE_LOCATION_ID","VIRUS_SCAN","RESTORE_POINT_DATE"]'
+    - key: TOKEN
+      value: '{{ .ACCESS_TOKEN }}'
+    - key: HEADERS
+      value: '{}'
+    - key: PARSE_HJSON
+      value: "true"
+    - key: METHOD
+      value: POST
+    - key: FAIL_ON_NON_SUCCESS_RESPONSE
+      value: "true"
+    - key: GO_TEMPLATE_BODY_PARSING
+      value: "true"
+    - key: RESPONSE_API_OBJECT_ONLY
+      value: "true"
+envs:
+  - name: IP_ADDRESS
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: REST_API_VERSION
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: ACCESS_TOKEN
+    description: Your access token, as generated by the Generate Access Token step.
+    type: string
+    required: true
+    example: '{{ $.generate_access_token.api_object.access_token }}'
+    options: {}
+  - name: SKIP_SSL_VERIFICATION
+    description: If set, request will not verify SSL certificates. Where applicable,
+      it might be better to provide a self-signed certificate using the
+      `CUSTOM_CERTIFICATES_PEM` parameter.
+    type: bool
+    default: "true"
+    options: {}
+    visibleIf: '*'
+  - name: PLAN_ID
+    description: System ID assigned to a plan.
+    type: string
+    required: true
+    example: b16cb30f-082d-479c-960f-30c15091f747
+    options: {}
+  - name: RESTORE_LOCATION_ID
+    description: Defines the recovery location to be used to perform the operation.
+    type: string
+    required: true
+    example: 7812f782-5f92-4c20-a115-cabce485bf16
+    options: {}
+  - name: VIRUS_SCAN
+    description: Defines whether to scan backup files for possible viruses.
+    type: string
+    required: true
+    default: "false"
+    example: "true"
+    options: {}
+  - name: RESTORE_POINT_DATE
+    description: Defines a restore point to be used to perform the operation. Null
+      value used to specify the latest restore point.
+    type: string
+    required: true
+    example: "2024-02-15T11:25:59Z"
+    options: {}
+outputs:
+  - name: api_object
+    type: json
+integrations:
+  - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+basetype: 1
+options:
+  executor:
+    name: http_request_v_4_23_0
+    sync: true
+  outputToFile: true
+exportedstepid: d445320d-a965-43b0-9c75-803571642205
+rawmanifest:
+  apiVersion: stackpulse.io/v1
+  kind: Step
+  metadata:
+    name: Launch Restore Plan
+    imageName: custom-step
+    description: Runs a restore plan with the specified ID.
+    type: custom
+    vendor: veeam recovery orchestrator
+    version: 6.0.0
+    featureFlag: ""
+    documentation_url: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_Restore
+    isPrivate: true
+    privateStep:
+      base: 1
+  outputs:
+    - name: api_object
+      type: json
+  envs:
+    - name: IP_ADDRESS
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: REST_API_VERSION
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: ACCESS_TOKEN
+      description: Your access token, as generated by the Generate Access Token step.
+      type: string
+      required: true
+      example: '{{ $.generate_access_token.api_object.access_token }}'
+      options: {}
+    - name: SKIP_SSL_VERIFICATION
+      description: If set, request will not verify SSL certificates. Where applicable,
+        it might be better to provide a self-signed certificate using the
+        `CUSTOM_CERTIFICATES_PEM` parameter.
+      type: bool
+      default: "true"
+      options: {}
+      visibleIf: '*'
+    - name: PLAN_ID
+      description: System ID assigned to a plan.
+      type: string
+      required: true
+      example: b16cb30f-082d-479c-960f-30c15091f747
+      options: {}
+    - name: RESTORE_LOCATION_ID
+      description: Defines the recovery location to be used to perform the operation.
+      type: string
+      required: true
+      example: 7812f782-5f92-4c20-a115-cabce485bf16
+      options: {}
+    - name: VIRUS_SCAN
+      description: Defines whether to scan backup files for possible viruses.
+      type: string
+      required: true
+      default: "false"
+      example: "true"
+      options: {}
+    - name: RESTORE_POINT_DATE
+      description: Defines a restore point to be used to perform the operation. Null
+        value used to specify the latest restore point.
+      type: string
+      required: true
+      example: "2024-02-15T11:25:59Z"
+      options: {}
+  integrations:
+    - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  options:
+    executor:
+      name: http_request_v_4_23_0
+      sync: true
+    outputToFile: true
+  http:
+    imageName: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      AUTHORIZATION: Bearer
+      BODY: |-
+        {
+          "ransomwareAction": "CancelRestore",
+          "restoreLocationId": "{{ .RESTORE_LOCATION_ID | jsonEscape }}",
+          "restorepointDate": "{{ .RESTORE_POINT_DATE | jsonEscape }}",
+          "virusScan": {{ .VIRUS_SCAN }}
+        }
+      CONTENT_TYPE: application/json; charset=utf-8
+      HEADERS: '{}'
+      METHOD: POST
+      PARSE_HJSON: "true"
+      REQUIRED_VARIABLES: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID","RESTORE_LOCATION_ID","VIRUS_SCAN","RESTORE_POINT_DATE"]'
+      TOKEN: '{{ .ACCESS_TOKEN }}'
+      URL: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID
+        }}/Restore
+  runtime:
+    image: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      - key: BODY
+        value: |-
+          {
+            "ransomwareAction": "CancelRestore",
+            "restoreLocationId": "{{ .RESTORE_LOCATION_ID | jsonEscape }}",
+            "restorepointDate": "{{ .RESTORE_POINT_DATE | jsonEscape }}",
+            "virusScan": {{ .VIRUS_SCAN }}
+          }
+      - key: AUTHORIZATION
+        value: Bearer
+      - key: CONTENT_TYPE
+        value: application/json; charset=utf-8
+      - key: URL
+        value: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID
+          }}/Restore
+      - key: REQUIRED_VARIABLES
+        value: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID","RESTORE_LOCATION_ID","VIRUS_SCAN","RESTORE_POINT_DATE"]'
+      - key: TOKEN
+        value: '{{ .ACCESS_TOKEN }}'
+      - key: HEADERS
+        value: '{}'
+      - key: PARSE_HJSON
+        value: "true"
+      - key: METHOD
+        value: POST
+      - key: FAIL_ON_NON_SUCCESS_RESPONSE
+        value: "true"
+      - key: GO_TEMPLATE_BODY_PARSING
+        value: "true"
+      - key: RESPONSE_API_OBJECT_ONLY
+        value: "true"
+---
+!!ExportedPrivateStep
+basestepid: 10de69a0-313d-5abb-9d67-71437f9d524f
+vendor:
+  id: cfcb8ed8-7f4b-4ba7-89db-fa77691a823d
+  icon: https://cdn.torq.io/vendors/veeam.svg
+  vendor: veeam recovery orchestrator
+  name: Veeam Recovery Orchestrator
+  is_private: true
+name: List Orchestrator Plans
+description: Retrieves a list of all created Orchestrator plans.
+documentationurl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_GetPlans
+runtime:
+  image: us-docker.pkg.dev/stackpulse/public/http/request
+  imageVersion: 4.23.0
+  envs:
+    - key: URL
+      value: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans
+    - key: HEADERS
+      value: '{}'
+    - key: BODY
+      value: ""
+    - key: AUTHORIZATION
+      value: Bearer
+    - key: TOKEN
+      value: '{{ .ACCESS_TOKEN }}'
+    - key: PARSE_HJSON
+      value: "true"
+    - key: METHOD
+      value: GET
+    - key: CONTENT_TYPE
+      value: application/json; charset=utf-8
+    - key: REQUIRED_VARIABLES
+      value: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN"]'
+    - key: FAIL_ON_NON_SUCCESS_RESPONSE
+      value: "true"
+    - key: GO_TEMPLATE_BODY_PARSING
+      value: "true"
+    - key: RESPONSE_API_OBJECT_ONLY
+      value: "true"
+envs:
+  - name: IP_ADDRESS
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: REST_API_VERSION
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: ACCESS_TOKEN
+    description: Your access token, as generated by the Generate Access Token step.
+    type: string
+    required: true
+    example: '{{ $.generate_access_token.api_object.access_token }}'
+    options: {}
+  - name: SKIP_SSL_VERIFICATION
+    description: If set, request will not verify SSL certificates. Where applicable,
+      it might be better to provide a self-signed certificate using the
+      `CUSTOM_CERTIFICATES_PEM` parameter.
+    type: bool
+    default: "true"
+    options: {}
+    visibleIf: '*'
+outputs:
+  - name: api_object
+    type: json
+    example: |-
+      {
+        "total": 1,
+        "data": [
+          {
+            "scheduleInfo": {
+              "virusScan": true,
+              "yaraScan": true,
+              "yaraRuleId": "333b2623-b1e1-4c30-9ab4-71d741bee1e6",
+              "id": "b16cb30f-082d-479c-960f-30c15091f747",
+              "enabled": true,
+              "timeSchedule": {
+                "scheduleMode": "OneTime",
+                "startTime": "2020-02-01T05:00:00Z",
+                "time": null,
+                "exactTime": "2020-02-01T05:00:00Z",
+                "daysOfWeek": null,
+                "monthDayType": null,
+                "dayOfMonth": null
+              },
+              "runAfterItemId": null,
+              "runAfterItemName": "",
+              "scanInfectedFlag": true,
+              "scanSuspiciousFlag": true,
+              "restorePointsCountForRansomwareScan": 10,
+              "ransomwareAction": "CancelRestore"
+            },
+            "scheduledTestsInfo": [
+              {
+                "scheduleInfo": {
+                  "virusScan": false,
+                  "yaraScan": false,
+                  "yaraRuleId": null,
+                  "id": "cb6e88da-0aef-4d76-9cb1-0aef5de37668",
+                  "enabled": true,
+                  "timeSchedule": {
+                    "scheduleMode": "Weekly",
+                    "startTime": "2020-01-10T22:00:00Z",
+                    "time": {
+                      "hours": 22,
+                      "minutes": 0
+                    },
+                    "exactTime": null,
+                    "daysOfWeek": "All",
+                    "monthDayType": null,
+                    "dayOfMonth": null
+                  },
+                  "runAfterItemId": null,
+                  "runAfterItemName": "",
+                  "scanInfectedFlag": true,
+                  "scanSuspiciousFlag": true,
+                  "restorePointsCountForRansomwareScan": 1,
+                  "ransomwareAction": "CancelRestore"
+                },
+                "virtualLabId": "01514858-2196-4393-b086-ec214ec51be1",
+                "virtualLabName": "lab1",
+                "backupServerName": "vbr1",
+                "virtualLabWaitTimeMinutes": 0,
+                "keepPlanRunning": true,
+                "keepLabRunning": true,
+                "recoveryTimeObjective": 60,
+                "stopWhenRTOExceeded": true,
+                "useInstantRecovery": false,
+                "scheduleName": "test",
+                "scheduleDescription": null,
+                "id": "0cdc6ef5-9bff-45d6-9619-92ce0d5512e2",
+                "planId": "9d65db55-f3b1-4b46-a564-109d48d16ecd",
+                "planName": "Round CDP",
+                "type": "ScheduleTest"
+              }
+            ],
+            "isOriginalRecoveryLocation": null,
+            "id": "d8cf22e7-a982-485a-a3e1-a2515011f7a9",
+            "planType": "CdpReplica",
+            "recoveryLocationId": null,
+            "recoveryLocationName": null,
+            "recoveryLocationDescription": null,
+            "recoveryLocationType": "Unknown",
+            "siteScopeId": "83e8c2a8-e72d-4564-b5fc-b31a7671a44f",
+            "siteScopeName": "Admin Scope",
+            "name": "Round CDP",
+            "state": "FailoverComplete",
+            "stateName": "Failover",
+            "stateOrder": "300. Failover",
+            "planMode": "Enabled",
+            "planVerificationState": "NeedsVerified",
+            "resultName": "Complete, 5 errors, 13 warnings",
+            "lastStableState": "FailbackComplete",
+            "lastStableStateName": "Failover",
+            "previousExecutionState": "DryRun",
+            "reportTemplateId": "c689c4f1-3587-4eea-b247-0d877b90e5ea",
+            "description": "",
+            "reportDocumentFormat": "Pdf",
+            "serverName": "lab1.test.local",
+            "siteName": "lab1.test.local",
+            "nearestFailoverScheduleTime": "2020-01-27T02:53:00Z",
+            "nearestTestScheduleTime": "2020-01-24T01:55:00Z",
+            "haltedReason": "Undefined",
+            "isEditingByCurrentUser": false,
+            "currentEditingUser": "",
+            "progress": 100,
+            "lastTestResult": "MalwareIssue",
+            "lastTestTime": "2020-01-08T07:28:00Z",
+            "lastCheckResult": "Success",
+            "lastCheckTime": "2020-01-05T12:30:00Z",
+            "lastTestResultName": "Halted",
+            "lastTestResultOrderNumber": 5,
+            "lastCheckResultName": "Warning",
+            "lastCheckResultOrderNumber": 3,
+            "virtualLabId": null,
+            "contactName": "Wendy May",
+            "contactEmail": "wendy.may@company.com",
+            "contactTel": "3232556666",
+            "isRunningState": false,
+            "isStableState": true,
+            "currentRunResult": "Error",
+            "currentTestResult": "Undefined",
+            "currentCheckResult": "Undefined",
+            "definitionReportEnabled": true,
+            "definitionReportStartTime": "2020-01-01T00:00:00Z",
+            "readinessCheckEnabled": true,
+            "readinessCheckStartTime": "2020-01-01T07:00:00Z",
+            "targetRecoveryTimeObjective": 3600,
+            "currentRecoveryTimeObjective": 0,
+            "targetRecoveryPointObjective": 15,
+            "currentRecoveryPointObjective": 0,
+            "roles": [
+              "DRSiteAdmin",
+              "DRPlanAuthor",
+              "DRPlanOperator"
+            ],
+            "vendor": "Unknown",
+            "isUndoPossible": false,
+            "isReversePossible": false,
+            "containsAgentGroups": false,
+            "storageRecoveryLocations": null,
+            "groupsType": "VmGroup"
+          }
+        ]
+      }
+integrations:
+  - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+basetype: 1
+options:
+  executor:
+    name: http_request_v_4_23_0
+    sync: true
+  outputToFile: true
+exportedstepid: f20c21d6-3057-4fca-979a-e31ebdd50e2c
+rawmanifest:
+  apiVersion: stackpulse.io/v1
+  kind: Step
+  metadata:
+    name: List Orchestrator Plans
+    imageName: custom-step
+    description: Retrieves a list of all created Orchestrator plans.
+    type: custom
+    vendor: veeam recovery orchestrator
+    version: 7.0.0
+    featureFlag: ""
+    documentation_url: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_GetPlans
+    isPrivate: true
+    privateStep:
+      base: 1
+  outputs:
+    - name: api_object
+      type: json
+      example: |-
+        {
+          "total": 1,
+          "data": [
+            {
+              "scheduleInfo": {
+                "virusScan": true,
+                "yaraScan": true,
+                "yaraRuleId": "333b2623-b1e1-4c30-9ab4-71d741bee1e6",
+                "id": "b16cb30f-082d-479c-960f-30c15091f747",
+                "enabled": true,
+                "timeSchedule": {
+                  "scheduleMode": "OneTime",
+                  "startTime": "2020-02-01T05:00:00Z",
+                  "time": null,
+                  "exactTime": "2020-02-01T05:00:00Z",
+                  "daysOfWeek": null,
+                  "monthDayType": null,
+                  "dayOfMonth": null
+                },
+                "runAfterItemId": null,
+                "runAfterItemName": "",
+                "scanInfectedFlag": true,
+                "scanSuspiciousFlag": true,
+                "restorePointsCountForRansomwareScan": 10,
+                "ransomwareAction": "CancelRestore"
+              },
+              "scheduledTestsInfo": [
+                {
+                  "scheduleInfo": {
+                    "virusScan": false,
+                    "yaraScan": false,
+                    "yaraRuleId": null,
+                    "id": "cb6e88da-0aef-4d76-9cb1-0aef5de37668",
+                    "enabled": true,
+                    "timeSchedule": {
+                      "scheduleMode": "Weekly",
+                      "startTime": "2020-01-10T22:00:00Z",
+                      "time": {
+                        "hours": 22,
+                        "minutes": 0
+                      },
+                      "exactTime": null,
+                      "daysOfWeek": "All",
+                      "monthDayType": null,
+                      "dayOfMonth": null
+                    },
+                    "runAfterItemId": null,
+                    "runAfterItemName": "",
+                    "scanInfectedFlag": true,
+                    "scanSuspiciousFlag": true,
+                    "restorePointsCountForRansomwareScan": 1,
+                    "ransomwareAction": "CancelRestore"
+                  },
+                  "virtualLabId": "01514858-2196-4393-b086-ec214ec51be1",
+                  "virtualLabName": "lab1",
+                  "backupServerName": "vbr1",
+                  "virtualLabWaitTimeMinutes": 0,
+                  "keepPlanRunning": true,
+                  "keepLabRunning": true,
+                  "recoveryTimeObjective": 60,
+                  "stopWhenRTOExceeded": true,
+                  "useInstantRecovery": false,
+                  "scheduleName": "test",
+                  "scheduleDescription": null,
+                  "id": "0cdc6ef5-9bff-45d6-9619-92ce0d5512e2",
+                  "planId": "9d65db55-f3b1-4b46-a564-109d48d16ecd",
+                  "planName": "Round CDP",
+                  "type": "ScheduleTest"
+                }
+              ],
+              "isOriginalRecoveryLocation": null,
+              "id": "d8cf22e7-a982-485a-a3e1-a2515011f7a9",
+              "planType": "CdpReplica",
+              "recoveryLocationId": null,
+              "recoveryLocationName": null,
+              "recoveryLocationDescription": null,
+              "recoveryLocationType": "Unknown",
+              "siteScopeId": "83e8c2a8-e72d-4564-b5fc-b31a7671a44f",
+              "siteScopeName": "Admin Scope",
+              "name": "Round CDP",
+              "state": "FailoverComplete",
+              "stateName": "Failover",
+              "stateOrder": "300. Failover",
+              "planMode": "Enabled",
+              "planVerificationState": "NeedsVerified",
+              "resultName": "Complete, 5 errors, 13 warnings",
+              "lastStableState": "FailbackComplete",
+              "lastStableStateName": "Failover",
+              "previousExecutionState": "DryRun",
+              "reportTemplateId": "c689c4f1-3587-4eea-b247-0d877b90e5ea",
+              "description": "",
+              "reportDocumentFormat": "Pdf",
+              "serverName": "lab1.test.local",
+              "siteName": "lab1.test.local",
+              "nearestFailoverScheduleTime": "2020-01-27T02:53:00Z",
+              "nearestTestScheduleTime": "2020-01-24T01:55:00Z",
+              "haltedReason": "Undefined",
+              "isEditingByCurrentUser": false,
+              "currentEditingUser": "",
+              "progress": 100,
+              "lastTestResult": "MalwareIssue",
+              "lastTestTime": "2020-01-08T07:28:00Z",
+              "lastCheckResult": "Success",
+              "lastCheckTime": "2020-01-05T12:30:00Z",
+              "lastTestResultName": "Halted",
+              "lastTestResultOrderNumber": 5,
+              "lastCheckResultName": "Warning",
+              "lastCheckResultOrderNumber": 3,
+              "virtualLabId": null,
+              "contactName": "Wendy May",
+              "contactEmail": "wendy.may@company.com",
+              "contactTel": "3232556666",
+              "isRunningState": false,
+              "isStableState": true,
+              "currentRunResult": "Error",
+              "currentTestResult": "Undefined",
+              "currentCheckResult": "Undefined",
+              "definitionReportEnabled": true,
+              "definitionReportStartTime": "2020-01-01T00:00:00Z",
+              "readinessCheckEnabled": true,
+              "readinessCheckStartTime": "2020-01-01T07:00:00Z",
+              "targetRecoveryTimeObjective": 3600,
+              "currentRecoveryTimeObjective": 0,
+              "targetRecoveryPointObjective": 15,
+              "currentRecoveryPointObjective": 0,
+              "roles": [
+                "DRSiteAdmin",
+                "DRPlanAuthor",
+                "DRPlanOperator"
+              ],
+              "vendor": "Unknown",
+              "isUndoPossible": false,
+              "isReversePossible": false,
+              "containsAgentGroups": false,
+              "storageRecoveryLocations": null,
+              "groupsType": "VmGroup"
+            }
+          ]
+        }
+  envs:
+    - name: IP_ADDRESS
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: REST_API_VERSION
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: ACCESS_TOKEN
+      description: Your access token, as generated by the Generate Access Token step.
+      type: string
+      required: true
+      example: '{{ $.generate_access_token.api_object.access_token }}'
+      options: {}
+    - name: SKIP_SSL_VERIFICATION
+      description: If set, request will not verify SSL certificates. Where applicable,
+        it might be better to provide a self-signed certificate using the
+        `CUSTOM_CERTIFICATES_PEM` parameter.
+      type: bool
+      default: "true"
+      options: {}
+      visibleIf: '*'
+  integrations:
+    - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  options:
+    executor:
+      name: http_request_v_4_23_0
+      sync: true
+    outputToFile: true
+  http:
+    imageName: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      AUTHORIZATION: Bearer
+      BODY: ""
+      CONTENT_TYPE: application/json; charset=utf-8
+      HEADERS: '{}'
+      METHOD: GET
+      PARSE_HJSON: "true"
+      REQUIRED_VARIABLES: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN"]'
+      TOKEN: '{{ .ACCESS_TOKEN }}'
+      URL: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans
+  runtime:
+    image: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      - key: URL
+        value: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans
+      - key: HEADERS
+        value: '{}'
+      - key: BODY
+        value: ""
+      - key: AUTHORIZATION
+        value: Bearer
+      - key: TOKEN
+        value: '{{ .ACCESS_TOKEN }}'
+      - key: PARSE_HJSON
+        value: "true"
+      - key: METHOD
+        value: GET
+      - key: CONTENT_TYPE
+        value: application/json; charset=utf-8
+      - key: REQUIRED_VARIABLES
+        value: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN"]'
+      - key: FAIL_ON_NON_SUCCESS_RESPONSE
+        value: "true"
+      - key: GO_TEMPLATE_BODY_PARSING
+        value: "true"
+      - key: RESPONSE_API_OBJECT_ONLY
+        value: "true"
+---
+!!ExportedPrivateStep
+basestepid: 10de69a0-313d-5abb-9d67-71437f9d524f
+vendor:
+  id: cfcb8ed8-7f4b-4ba7-89db-fa77691a823d
+  icon: https://cdn.torq.io/vendors/veeam.svg
+  vendor: veeam recovery orchestrator
+  name: Veeam Recovery Orchestrator
+  is_private: true
+name: Enable Orchestrator Plan
+description: Enables a plan with the specified ID.
+documentationurl: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_Enable
+runtime:
+  image: us-docker.pkg.dev/stackpulse/public/http/request
+  imageVersion: 4.23.0
+  envs:
+    - key: METHOD
+      value: POST
+    - key: HEADERS
+      value: '{}'
+    - key: URL
+      value: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID
+        }}/Enable
+    - key: REQUIRED_VARIABLES
+      value: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID"]'
+    - key: PARSE_HJSON
+      value: "true"
+    - key: AUTHORIZATION
+      value: Bearer
+    - key: TOKEN
+      value: '{{ .ACCESS_TOKEN }}'
+    - key: BODY
+      value: ""
+    - key: CONTENT_TYPE
+      value: application/json; charset=utf-8
+    - key: FAIL_ON_NON_SUCCESS_RESPONSE
+      value: "true"
+    - key: GO_TEMPLATE_BODY_PARSING
+      value: "true"
+    - key: RESPONSE_API_OBJECT_ONLY
+      value: "true"
+envs:
+  - name: IP_ADDRESS
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: REST_API_VERSION
+    type: string
+    required: true
+    options: {}
+    fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  - name: ACCESS_TOKEN
+    description: Your access token, as generated by the Generate Access Token step.
+    type: string
+    required: true
+    example: '{{ $.generate_access_token.api_object.access_token }}'
+    options: {}
+  - name: PLAN_ID
+    description: System ID assigned to a plan.
+    type: string
+    required: true
+    example: b16cb30f-082d-479c-960f-30c15091f747
+    options: {}
+  - name: SKIP_SSL_VERIFICATION
+    description: If set, request will not verify SSL certificates. Where applicable,
+      it might be better to provide a self-signed certificate using the
+      `CUSTOM_CERTIFICATES_PEM` parameter.
+    type: bool
+    default: "true"
+    options: {}
+    visibleIf: '*'
+outputs:
+  - name: api_object
+    type: json
+integrations:
+  - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+basetype: 1
+options:
+  executor:
+    name: http_request_v_4_23_0
+    sync: true
+  outputToFile: true
+exportedstepid: f355562c-3712-4937-a860-75f4e0eba620
+rawmanifest:
+  apiVersion: stackpulse.io/v1
+  kind: Step
+  metadata:
+    name: Enable Orchestrator Plan
+    imageName: custom-step
+    description: Enables a plan with the specified ID.
+    type: custom
+    vendor: veeam recovery orchestrator
+    version: 2.0.0
+    featureFlag: ""
+    documentation_url: https://helpcenter.veeam.com/docs/vro/rest/reference/vro-rest.html/?ver=7.2#tag/Plans/operation/Plans_Enable
+    isPrivate: true
+    privateStep:
+      base: 1
+  outputs:
+    - name: api_object
+      type: json
+  envs:
+    - name: IP_ADDRESS
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: REST_API_VERSION
+      type: string
+      required: true
+      options: {}
+      fromIntegration: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+    - name: ACCESS_TOKEN
+      description: Your access token, as generated by the Generate Access Token step.
+      type: string
+      required: true
+      example: '{{ $.generate_access_token.api_object.access_token }}'
+      options: {}
+    - name: PLAN_ID
+      description: System ID assigned to a plan.
+      type: string
+      required: true
+      example: b16cb30f-082d-479c-960f-30c15091f747
+      options: {}
+    - name: SKIP_SSL_VERIFICATION
+      description: If set, request will not verify SSL certificates. Where applicable,
+        it might be better to provide a self-signed certificate using the
+        `CUSTOM_CERTIFICATES_PEM` parameter.
+      type: bool
+      default: "true"
+      options: {}
+      visibleIf: '*'
+  integrations:
+    - 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+  options:
+    executor:
+      name: http_request_v_4_23_0
+      sync: true
+    outputToFile: true
+  http:
+    imageName: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      AUTHORIZATION: Bearer
+      BODY: ""
+      CONTENT_TYPE: application/json; charset=utf-8
+      HEADERS: '{}'
+      METHOD: POST
+      PARSE_HJSON: "true"
+      REQUIRED_VARIABLES: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID"]'
+      TOKEN: '{{ .ACCESS_TOKEN }}'
+      URL: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID
+        }}/Enable
+  runtime:
+    image: us-docker.pkg.dev/stackpulse/public/http/request
+    imageVersion: 4.23.0
+    envs:
+      - key: METHOD
+        value: POST
+      - key: HEADERS
+        value: '{}'
+      - key: URL
+        value: https://{{ .IP_ADDRESS }}/api/{{ .REST_API_VERSION }}/Plans/{{ .PLAN_ID
+          }}/Enable
+      - key: REQUIRED_VARIABLES
+        value: '["IP_ADDRESS","REST_API_VERSION","ACCESS_TOKEN","PLAN_ID"]'
+      - key: PARSE_HJSON
+        value: "true"
+      - key: AUTHORIZATION
+        value: Bearer
+      - key: TOKEN
+        value: '{{ .ACCESS_TOKEN }}'
+      - key: BODY
+        value: ""
+      - key: CONTENT_TYPE
+        value: application/json; charset=utf-8
+      - key: FAIL_ON_NON_SUCCESS_RESPONSE
+        value: "true"
+      - key: GO_TEMPLATE_BODY_PARSING
+        value: "true"
+      - key: RESPONSE_API_OBJECT_ONLY
+        value: "true"
+---
+!!ExportedCustomIntegrationType
+id: 53a3fcb7-0adb-443b-b5e9-b20bd908ecdf
+type: 25
+name: Veeam Recovery Orchestrator
+title: Veeam Recovery Orchestrator
+cardlabel: ""
+modallabel: ""
+logourl: https://svglogostouse.s3.us-east-1.amazonaws.com/Veeam_logo_2024_RGB_small.svg
+columns: {}
+section: 4
+enrichmentconfiguration: []
+defaultcondition: []
+documentation: https://helpcenter.veeam.com/docs/vro/rest/overview.html
+hookconfig: []
+attributes:
+  - name: IP Address
+    type: plain
+    variable: IP_ADDRESS
+    description: DNS name or IP address and port of the machine where the
+      Orchestrator server runs.
+    example: 10.10.10.11:9898
+  - name: Username
+    type: plain
+    variable: USERNAME
+    example: restapiuser
+  - name: Password
+    type: secret
+    variable: PASSWORD
+    example: Passw0rd
+  - name: REST API Version
+    type: plain
+    variable: REST_API_VERSION
+    example: v7.2
+sidebarlabel: This integration will allow you to query the Veeam Recovery
+  Orchestrator REST API endpoints and allow Torq to take actions against the
+  API’s provided by the Veeam Recovery Orchestrator platform.
+modallabel2: ""
+digest: ""
+vendor: ""
+health: null
+featureflag: ""
+supportsexternalvault: false
+iscustom: true
+searchkeywords: []
