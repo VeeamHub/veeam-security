@@ -1,0 +1,426 @@
+!!ExportedWorkflow
+apiVersion: torq.io/v2alpha
+kind: Workflow
+id: 5dda97a5-2258-4083-8ded-29449587da78
+name: RestoreIQ
+trigger:
+  onDemandTrigger:
+    parameterList:
+      parameters: []
+    exposeInCases: true
+playbook:
+  steps:
+    - name: us-docker.pkg.dev/stackpulse/public/utils/parameters_utils/workflow_parameters:1.5.0
+      id: workflow_parameters
+      env:
+        SCHEMA: |-
+          {
+              "veeam_integration": {
+                  "type": 17,
+                  "prettyName": "Veeam Integration",
+                  "description": "Specify the Veeam Intergration to be used.",
+                  "uiPlaceholder": "",
+                  "integration": {
+                      "defaultValue": "",
+                      "vendor": "veeam_token"
+                  }
+              },
+              "runner_name": {
+                  "type": 8,
+                  "prettyName": "Runner Name",
+                  "description": "The name of the local Torq Runner to reach Veeam Backup & Replication deployment.",
+                  "uiPlaceholder": ""
+              },
+              "confidence_threshold": {
+                  "type": 11,
+                  "prettyName": "confidence_threshold",
+                  "description": "The Confidence Threshold value.",
+                  "uiPlaceholder": "70"
+              },
+              "skip": {
+                  "type": 8,
+                  "prettyName": "Skip",
+                  "description": "Skip value the loop through the restore points.",
+                  "uiPlaceholder": "0"
+              },
+              "malware_events_limit": {
+                  "type": 8,
+                  "prettyName": "Malware Events Limit",
+                  "description": "The number of malware events to list",
+                  "uiPlaceholder": "100"
+              },
+              "restore_points_limit": {
+                  "type": 8,
+                  "prettyName": "Restore Points Limit",
+                  "description": "Skip value the loop through the restore points.",
+                  "uiPlaceholder": "200"
+              }
+          }
+        VALUES: |-
+          {
+            "veeam_integration": "VBR Server",
+            "runner_name": "Runner",
+            "confidence_threshold": 70,
+            "skip": "0",
+            "malware_events_limit": "100",
+            "restore_points_limit": "200"
+          }
+      uuid: 8a8346c0-df27-4fc8-81b5-4f4dfdb0a4fa
+      pretty_name: Workflow Parameters
+      options:
+        executor:
+          name: utils_workflow_parameters_v_1_3_0
+          env: {}
+          sync: true
+          disable: false
+      manifestId: e77cae6e-fb7b-52bb-b970-6798296b076d
+      isPrivate: false
+      mock_output:
+        enabled: false
+      skip: false
+      retry: {}
+    - name: us-docker.pkg.dev/stackpulse/public/veeam/generate-access-token:1.3.0
+      id: generate_access_token
+      env:
+        SKIP_SSL_VERIFICATION: "true"
+      envFrom:
+        integrationRef: '{{ $.workflow_parameters.veeam_integration }}'
+      runner: '{{ $.workflow_parameters.runner_name }}'
+      uuid: b0b1a35e-dae8-4ba1-896e-12f7c853e327
+      pretty_name: Generate Access Token
+      options:
+        executor:
+          name: http_request_v_4_34_0
+          env: {}
+          sync: true
+          disable: false
+      documentationUrl: https://helpcenter.veeam.com/docs/backup/vbr_rest/reference/vbr-rest-v1-2-rev0.html#tag/Login/operation/CreateToken
+      manifestId: 02d65711-cc62-5b64-b7cd-786c300d8324
+      isPrivate: false
+      isPrivateUrl: true
+      mock_output:
+        enabled: false
+      skip: false
+      retry: {}
+    - parallel:
+        uuid: 9153c502-a916-4639-b616-98bb8a41dc85
+        pretty_name: Parallel Executions
+        threads:
+          - uuid: daf0831c-505c-4d0d-8904-a66a82c42956
+            steps:
+              - loop:
+                  key: limit_key
+                  value: limit_value
+                  steps:
+                    - name: us-docker.pkg.dev/stackpulse/public/veeam/list-restore-points:2.3.0
+                      id: list_restore_points
+                      env:
+                        ACCESS_TOKEN: '{{ $.generate_access_token.api_object.access_token }}'
+                        LIMIT: '{{ $.workflow_parameters.restore_points_limit }}'
+                        SKIP: '{{ $.workflow_parameters.skip }}'
+                        SKIP_SSL_VERIFICATION: "true"
+                      envFrom:
+                        integrationRef: '{{ $.workflow_parameters.veeam_integration }}'
+                      runner: '{{ $.workflow_parameters.runner_name }}'
+                      uuid: 6fef8849-460e-4db3-98bf-7373bcd36f91
+                      pretty_name: List Restore Points
+                      options:
+                        executor:
+                          name: http_request_v_4_34_0
+                          env: {}
+                          sync: true
+                          disable: false
+                      documentationUrl: https://helpcenter.veeam.com/docs/backup/vbr_rest/reference/vbr-rest-v1-2-rev0.html#tag/Restore-Points/operation/GetAllObjectRestorePoints
+                      manifestId: 60d11915-18fd-5454-9a69-605309820fd6
+                      isPrivate: false
+                      isPrivateUrl: true
+                      mock_output:
+                        enabled: false
+                      skip: false
+                      retry: {}
+                    - collector:
+                        id: collect
+                        uuid: 603bc882-3a7d-448f-8cfb-e0d1bd6c88bd
+                        pretty_name: Collect
+                        expression: '{{ $.list_restore_points.api_object.data }}'
+                        flatten: true
+                    - if:
+                        conditions:
+                          or:
+                            - and:
+                                - lvalue: '{{ $.collect.length }}'
+                                  operator: LOWER
+                                  rvalue: '{{ $.limit_value }}'
+                        then: []
+                        else:
+                          - break:
+                              pretty_name: Break
+                              uuid: 783c3012-f77f-4600-8f08-4fe040590584
+                        uuid: 47b825d1-d701-4f64-9241-d3891b05ccf5
+                        pretty_name: If collection length is less than the limit value
+                  uuid: afe4b7f5-3380-4919-97e5-4969ac3dc003
+                  pretty_name: Loop through the Restore Points
+                  until_break: true
+          - uuid: 7f42523e-3984-4b98-9431-a514eb397209
+            steps:
+              - name: us-docker.pkg.dev/stackpulse/public/veeam/list-malware-events:2.3.0
+                id: list_malware_events
+                env:
+                  ACCESS_TOKEN: '{{ $.generate_access_token.api_object.access_token }}'
+                  LIMIT: '{{ $.workflow_parameters.malware_events_limit }}'
+                  ORDER_ASC: "false"
+                  ORDER_COLUMN: DetectionTimeUtc
+                  SKIP_SSL_VERIFICATION: "true"
+                envFrom:
+                  integrationRef: '{{ $.workflow_parameters.veeam_integration }}'
+                runner: '{{ $.workflow_parameters.runner_name }}'
+                uuid: ea398347-821a-4f8c-8865-ffc7924aadb2
+                pretty_name: List Malware Events
+                options:
+                  executor:
+                    name: http_request_v_4_34_0
+                    env: {}
+                    sync: true
+                    disable: false
+                documentationUrl: https://helpcenter.veeam.com/docs/backup/vbr_rest/reference/vbr-rest-v1-2-rev0.html#tag/Malware-Detection/operation/ViewSuspiciousActivityEvents
+                manifestId: 52db644d-c582-5c92-bd39-615909aa3637
+                isPrivate: false
+                isPrivateUrl: true
+                mock_output:
+                  enabled: false
+                skip: false
+                retry: {}
+    - name: us-docker.pkg.dev/stackpulse/public/scripting/python:3.11.0
+      id: restoreiq
+      env:
+        PYTHON_CODE: |-
+          #!/usr/bin/env python3
+
+          import json
+          import re
+          from datetime import datetime, timezone
+
+          restore_points = json.loads(r'''{{ $.list_restore_points.api_object.data }}''')
+          malware_events = json.loads(r'''{{ $.list_malware_events.api_object.data }}''')
+
+          threshold = {{ $.workflow_parameters.confidence_threshold }}
+          preferred_repos = []  # optional: ["repo-gold"] per host
+
+          _MALWARE_SCORES = {"Clean": 60, "Informative": 30, "Suspicious": 0, "Infected": 0}
+
+          # Highest-relevance type wins, not most frequent. A single RansomwareNotes
+          # hit matters more than fifty routine AntivirusScan hits.
+          _TYPE_PRIORITY = [
+              "RansomwareNotes", "EncryptedData", "IndicatorOfCompromise", "MalwareExtensions",
+              "YaraScan", "AntivirusScan", "DeletedUsefulFiles", "RenamedFiles", "Unknown",
+          ]
+
+
+          def normalize_name(name):
+              return re.sub(r"\s+Id:\s*\d+$", "", name or "").strip()
+
+
+          def top_event_type(events):
+              types = {ev.get("type") for ev in events if ev.get("type")}
+              if not types:
+                  return None
+              for t in _TYPE_PRIORITY:
+                  if t in types:
+                      return t
+              return sorted(types)[0]
+
+
+          def score_restore_point(point, all_points, now, preferred_repos=None):
+              malware_score = _MALWARE_SCORES.get(point.get("malwareStatus") or "", 15)
+
+              rp_time = datetime.fromisoformat(point["creationTime"].replace("Z", "+00:00"))
+              age_hours = (now - rp_time).total_seconds() / 3600
+              if age_hours >= 24:
+                  margin_score = 25
+              elif age_hours >= 12:
+                  margin_score = 20
+              elif age_hours >= 4:
+                  margin_score = 12
+              elif age_hours >= 1:
+                  margin_score = 5
+              else:
+                  margin_score = 0
+
+              newer = [p for p in all_points
+                       if datetime.fromisoformat(p["creationTime"].replace("Z", "+00:00")) > rp_time]
+              infected = [p for p in newer if p.get("malwareStatus") == "Infected"]
+              suspicious_rps = [p for p in newer if p.get("malwareStatus") == "Suspicious"]
+
+              if not infected and not suspicious_rps:
+                  neighbor_score = 15
+              else:
+                  direct = min(newer, key=lambda p: datetime.fromisoformat(p["creationTime"].replace("Z", "+00:00"))) if newer else None
+                  if len(infected) >= 2 or (infected and suspicious_rps):
+                      neighbor_score = -30
+                  elif direct and direct.get("malwareStatus") == "Infected":
+                      neighbor_score = -20
+                  elif infected:
+                      neighbor_score = -10
+                  elif direct and direct.get("malwareStatus") == "Suspicious":
+                      neighbor_score = -10
+                  else:
+                      neighbor_score = -5
+
+              repo_score = 0
+              rp_repo = point.get("repositoryName") or ""
+              if preferred_repos and rp_repo and any(r.lower() in rp_repo.lower() for r in preferred_repos):
+                  repo_score = 10
+
+              return max(0, min(100, malware_score + margin_score + neighbor_score + repo_score))
+
+
+          def compute_summary(workload, rps, events, now, threshold, preferred_repos=None):
+              if not rps:
+                  return {"workload": workload, "status": "no_data", "best_score": None,
+                          "best_rp_time": None, "best_rp_malware_status": None,
+                          "event_count": len(events), "top_event_type": top_event_type(events)}
+
+              selectable = [p for p in rps if p.get("malwareStatus") not in ("Infected", "Suspicious")]
+
+              if selectable:
+                  scored = sorted(((p, score_restore_point(p, rps, now, preferred_repos)) for p in selectable),
+                                   key=lambda x: x[1], reverse=True)
+                  best_rp, best_score = scored[0]
+              else:
+                  best_rp = max(rps, key=lambda p: p["creationTime"])
+                  best_score = score_restore_point(best_rp, rps, now, preferred_repos)
+
+              statuses = [p.get("malwareStatus") for p in rps]
+              if "Infected" in statuses:
+                  status = "infected"
+              elif "Suspicious" in statuses or len(events) > 0:
+                  status = "suspicious"
+              elif best_score >= threshold:
+                  status = "clean"
+              else:
+                  status = "low_confidence"
+
+              return {"workload": workload, "status": status, "best_score": best_score,
+                      "best_rp_time": best_rp["creationTime"],
+                      "best_rp_malware_status": best_rp.get("malwareStatus"),
+                      "event_count": len(events), "top_event_type": top_event_type(events)}
+
+
+          # Run, Forrest, Run
+          now = datetime.now(timezone.utc)
+
+          grouped = {}
+          for rp in restore_points:
+              grouped.setdefault(rp["name"], []).append(rp)
+
+          events_by_workload = {}
+          for ev in malware_events:
+              name = (ev.get("machine") or {}).get("displayName")
+              if name:
+                  events_by_workload.setdefault(normalize_name(name), []).append(ev)
+
+          order = {"infected": 0, "suspicious": 1, "low_confidence": 2, "clean": 3, "no_data": 4}
+          summaries = [
+              compute_summary(name, rps, events_by_workload.get(normalize_name(name), []), now, threshold, preferred_repos)
+              for name, rps in grouped.items()
+          ]
+          summaries.sort(key=lambda s: (order.get(s["status"], 9), s["workload"]))
+
+          print(json.dumps(summaries))
+      uuid: bef611d9-6bca-4d98-8f3c-0939380c003d
+      pretty_name: RestoreIQ
+      options: {}
+      icon: https://storage.googleapis.com/stackpulse-public/vendors/python.svg
+      manifestId: a85f82b7-7fb4-5e22-9de2-87988568ea96
+      isPrivate: false
+      isPrivateUrl: true
+      mock_output:
+        enabled: false
+      skip: false
+      retry: {}
+    - exit:
+        success: "true"
+        pretty_name: Exit
+        output: '{}'
+        uuid: c8e25ad3-8d01-422f-a91e-e4c9b26bdd19
+  annotations:
+    - uuid: 517bb702-bd40-492f-a113-2f9f6b9dd822
+      x: -1668
+      "y": -195
+      width: 962
+      height: 1187
+      content: '{"type":"doc","content":[{"type":"heading","attrs":{"level":1},"content":[{"type":"text","marks":[{"type":"bold"}],"text":"RestoreIQ
+        – Torq
+        Automation"}]},{"type":"paragraph","content":[{"type":"text","marks":[{"type":"bold"}],"text":"Version
+        1.0 - July 9
+        2026"}]},{"type":"paragraph","content":[{"type":"text","text":"Automated
+        Veeam restore point risk scoring, ported from
+        "},{"type":"text","marks":[{"type":"link","attrs":{"href":"https://github.com/yetanothermightytool/python/tree/main/vbr/RestoreIQ","target":"_blank","rel":"noopener
+        noreferrer
+        nofollow","class":null}}],"text":"https://github.com/yetanothermightytool/python/tree/main/vbr/RestoreIQ
+        "},{"type":"text","text":"into a native Torq workflow (Veeam connector
+        steps + inline Python
+        scoring)"}]},{"type":"heading","attrs":{"level":4},"content":[{"type":"text","marks":[{"type":"bold"}],"text":"What
+        it does"}]},{"type":"paragraph","content":[{"type":"text","text":"Pulls
+        restore points for all protected workloads (VMs, Agent backups, NFS/SMB
+        shares) from Veeam Backup & Replication, cross-references them with
+        Veeam''s malware detection events, and scores every restore point on how
+        safe it is to recover from. The result is a status per workload:
+        "},{"type":"text","marks":[{"type":"code"}],"text":"clean"},{"type":"text","text":",
+        "},{"type":"text","marks":[{"type":"code"}],"text":"suspicious"},{"type":"text","text":",
+        "},{"type":"text","marks":[{"type":"code"}],"text":"infected"},{"type":"text","text":",
+        "},{"type":"text","marks":[{"type":"code"}],"text":"low_confidence"},{"type":"text","text":",
+        or
+        "},{"type":"text","marks":[{"type":"code"}],"text":"no_data"},{"type":"text","text":",
+        ready for downstream branching (case creation, alerting, review
+        queues)."}]},{"type":"heading","attrs":{"level":4},"content":[{"type":"text","text":"Flow"}]},{"type":"paragraph","content":[{"type":"text","text":"1.
+        "},{"type":"text","marks":[{"type":"bold"}],"text":"List Restore
+        Points"},{"type":"text","text":" (Veeam step) – all restore
+        points"}]},{"type":"paragraph","content":[{"type":"text","text":"2.
+        "},{"type":"text","marks":[{"type":"bold"}],"text":"List Malware
+        Detection Events"},{"type":"text","text":" (Veeam step) – malware
+        events"}]},{"type":"paragraph","content":[{"type":"text","text":"3.
+        "},{"type":"text","marks":[{"type":"bold"}],"text":"Python
+        step"},{"type":"text","text":" – scores each restore point, groups by
+        workload, returns a sorted JSON
+        array"}]},{"type":"paragraph","content":[{"type":"text","text":"4.
+        Format the
+        output"}]},{"type":"heading","attrs":{"level":4},"content":[{"type":"text","text":"Confidence
+        score
+        (0–100)"}]},{"type":"table","content":[{"type":"tableRow","content":[{"type":"tableHeader","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Component"}]}]},{"type":"tableHeader","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Range"}]}]},{"type":"tableHeader","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Logic"}]}]}]},{"type":"tableRow","content":[{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Malware
+        Status"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"0–60"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Clean=60,
+        Informative=30, Unknown=15,
+        Suspicious/Infected=0"}]}]}]},{"type":"tableRow","content":[{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Safety
+        Margin"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"0-25"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Age
+        of restore point: ≥24h→25, ≥12h→20, ≥4h→12, ≥1h→5,
+        <1h→0"}]}]}]},{"type":"tableRow","content":[{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Neighbor
+        Contamination"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"-30-+15"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"-30–+15
+        | Infection state of newer restore points on the same
+        workload"}]}]}]},{"type":"tableRow","content":[{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Repository
+        Bonus"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"0–+10"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"+10
+        if in a preferred repository (optional, off by
+        default)"}]}]}]}]},{"type":"heading","attrs":{"level":4},"content":[{"type":"text","text":"Workload
+        Status"}]},{"type":"table","content":[{"type":"tableRow","content":[{"type":"tableHeader","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Status"}]}]},{"type":"tableHeader","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Condition"}]}]}]},{"type":"tableRow","content":[{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"clean"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Best
+        score ≥ threshold (default 70), no infected/suspicious restore points,
+        no malware
+        events"}]}]}]},{"type":"tableRow","content":[{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"suspicious"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"At
+        least one suspicious restore point or malware event in the lookback
+        window"}]}]}]},{"type":"tableRow","content":[{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"infected"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"At
+        least one restore point marked
+        Infected"}]}]}]},{"type":"tableRow","content":[{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"low_confidence"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"Best
+        score below threshold, no infected/suspicious restore
+        points"}]}]}]},{"type":"tableRow","content":[{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"no_data"}]}]},{"type":"tableCell","attrs":{"colspan":1,"rowspan":1,"colwidth":null},"content":[{"type":"paragraph","content":[{"type":"text","text":"No
+        restore points found for this
+        workload"}]}]}]}]},{"type":"heading","attrs":{"level":4},"content":[{"type":"text","text":"Notes"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"\"Workload\"
+        covers VMs, physical hosts, and unstructured data (NFS/SMB) restore
+        points alike, eligibility is based purely on malware status, not VM-only
+        operations like Instant
+        Recovery."}]}]},{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Threshold
+        is configured in the Workflow Parameters step.
+        "}]}]},{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"The
+        repository bonus is configurable in the Python step (will be added to
+        the Workflow Parameters in a future release - tests
+        ongoing)."}]}]}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Tested
+        with Veeam Backup & Replication 13.0.2"}]}]}]}]}'
+  output_schema: '{}'
+root: true
