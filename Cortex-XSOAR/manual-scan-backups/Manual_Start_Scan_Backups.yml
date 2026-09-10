@@ -1,0 +1,733 @@
+id: 18ac4172-522e-4ce9-8fc5-6d83add3d6a7
+version: 28
+vcShouldKeepItemLegacyProdMachine: false
+name: Veeam  - Manual Start Scan Backups
+description: This playbook lets an analyst manually kick off a malware scan of a Veeam
+  backup, using either an antivirus engine or a YARA rule. It waits for the scan to
+  finish and reports whether it succeeded or failed.
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: 38d43c67-8cc3-478c-8bf7-54fdb9053137
+    type: start
+    task:
+      id: 38d43c67-8cc3-478c-8bf7-54fdb9053137
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "3"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 152.5,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "3":
+    id: "3"
+    taskid: ad176ff8-a61d-4652-84c4-48f972de00bb
+    type: collection
+    task:
+      id: ad176ff8-a61d-4652-84c4-48f972de00bb
+      version: -1
+      name: Query Hostname
+      type: collection
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "10"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 152.5,
+          "y": 210
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    message:
+      to: null
+      subject: null
+      body: null
+      methods: []
+      format: ""
+      bcc: null
+      cc: null
+      timings:
+        retriescount: 2
+        retriesinterval: 360
+        completeafterreplies: 1
+        completeafterv2: true
+        completeaftersla: false
+    form:
+      questions:
+      - id: "0"
+        label: ""
+        labelarg:
+          simple: Hostname
+        required: true
+        gridcolumns: []
+        defaultrows: []
+        type: shortText
+        options: []
+        optionsarg: []
+        fieldassociated: ""
+        placeholder: ""
+        tooltip: Hostname to scan restore points for.
+        readonly: false
+      - id: "1"
+        label: ""
+        labelarg:
+          simple: VBR Instance
+        required: false
+        gridcolumns: []
+        defaultrows: []
+        type: singleSelect
+        options: []
+        optionsarg:
+        - complex:
+            root: modules
+            accessor: name
+        - {}
+        fieldassociated: ""
+        placeholder: ""
+        tooltip: VBR Instance to be used
+        readonly: false
+      title: Please enter the Hostname
+      description: ""
+      sender: ""
+      expired: false
+      totalanswers: 0
+    skipunavailable: false
+    quietmode: 2
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9":
+    id: "9"
+    taskid: 672d0167-1df3-4a76-a3c5-6eebaadede55
+    type: title
+    task:
+      id: 672d0167-1df3-4a76-a3c5-6eebaadede55
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": -280,
+          "y": 2340
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "10":
+    id: "10"
+    taskid: b68fff48-d274-493a-8bbc-bfb8a4ed43e1
+    type: regular
+    task:
+      id: b68fff48-d274-493a-8bbc-bfb8a4ed43e1
+      version: -1
+      name: Get Restore Point
+      description: Get All Restore Points.
+      script: VBR REST API|||veeam-vbr-get-restore-points
+      type: regular
+      iscommand: true
+      brand: VBR REST API
+    nexttasks:
+      '#none#':
+      - "11"
+    scriptarguments:
+      limit:
+        simple: "1"
+      nameFilter:
+        simple: ${Please enter the Hostname.Answers.0}
+      orderAsc:
+        simple: "false"
+      orderColumn:
+        simple: CreationTime
+      using:
+        simple: ${Please enter the Hostname.Answers.1}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 152.5,
+          "y": 385
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "11":
+    id: "11"
+    taskid: ff7eb183-ee0b-4237-ab80-778f7b4e1a63
+    type: condition
+    task:
+      id: ff7eb183-ee0b-4237-ab80-778f7b4e1a63
+      version: -1
+      name: Check Restore Points Existence
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "9"
+      "yes":
+      - "12"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: isNotEmpty
+          left:
+            value:
+              simple: Veeam.VBR.get_restore_points.data.id
+            iscontext: true
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 152.5,
+          "y": 560
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "12":
+    id: "12"
+    taskid: 1989ce30-4f9c-412e-b339-774573678186
+    type: regular
+    task:
+      id: 1989ce30-4f9c-412e-b339-774573678186
+      version: -1
+      name: Get Backup Object ID
+      description: Sends a generic HTTP request to any VBR REST API endpoint.
+      script: VBR REST API|||veeam-vbr-general-api-request
+      type: regular
+      iscommand: true
+      brand: VBR REST API
+    nexttasks:
+      '#none#':
+      - "13"
+    scriptarguments:
+      method:
+        simple: get
+      path:
+        simple: /api/v1/backupObjects?nameFilter=${Please enter the Hostname.Answers.0}
+      using:
+        simple: ${Please enter the Hostname.Answers.1}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 735
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "13":
+    id: "13"
+    taskid: 6083f1e9-d188-4a1b-a0c1-4d77f1fbe453
+    type: condition
+    task:
+      id: 6083f1e9-d188-4a1b-a0c1-4d77f1fbe453
+      version: -1
+      name: Select Scan Type
+      description: Determines a scan type - an antivirus solution or a Yara rule.
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      AV Scan:
+      - "17"
+      YARA:
+      - "14"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 910
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "14":
+    id: "14"
+    taskid: 52ae0177-4408-46ad-82fa-6f9f8258152f
+    type: regular
+    task:
+      id: 52ae0177-4408-46ad-82fa-6f9f8258152f
+      version: -1
+      name: Get YARA Rules
+      description: Get All YARA Rules.
+      script: VBR REST API|||veeam-vbr-get-yara-rules
+      type: regular
+      iscommand: true
+      brand: VBR REST API
+    nexttasks:
+      '#none#':
+      - "15"
+    scriptarguments:
+      using:
+        simple: ${Please enter the Hostname.Answers.1}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1085
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "15":
+    id: "15"
+    taskid: 6069b14b-51d1-48a7-ad46-12eaf7245cd2
+    type: collection
+    task:
+      id: 6069b14b-51d1-48a7-ad46-12eaf7245cd2
+      version: -1
+      name: Select YARA Rule
+      description: Ask the analyst for verification of which URL to block
+      type: collection
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "16"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1260
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    message:
+      to:
+        simple: Analyst
+      subject:
+        simple: 'User Verification - Block URLs (Inc #${incident.id})'
+      body:
+        simple: Dear XSOAR user, Please approve those URLs that you would like to
+          block in your internal systems
+      methods: []
+      format: ""
+      bcc: null
+      cc: null
+      timings:
+        retriescount: 2
+        retriesinterval: 360
+        completeafterreplies: 1
+        completeafterv2: true
+        completeaftersla: false
+    form:
+      questions:
+      - id: "0"
+        label: ""
+        labelarg:
+          simple: Select Yara Rule
+        required: false
+        gridcolumns: []
+        defaultrows: []
+        type: singleSelect
+        options: []
+        optionsarg:
+        - {}
+        - simple: ${Veeam.VBR.get_yara_rules.data}
+        - {}
+        fieldassociated: ""
+        placeholder: ""
+        tooltip: ""
+        readonly: false
+      title: YaraRule
+      description: ""
+      sender: ""
+      expired: false
+      totalanswers: 0
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "16":
+    id: "16"
+    taskid: 6ecd978b-4078-43e0-ba4c-014f8091e55d
+    type: regular
+    task:
+      id: 6ecd978b-4078-43e0-ba4c-014f8091e55d
+      version: -1
+      name: Start YARA Scan
+      description: Starts a Scan Backup session.
+      script: VBR REST API|||veeam-vbr-start-malware-backup-scan
+      type: regular
+      iscommand: true
+      brand: VBR REST API
+    nexttasks:
+      '#none#':
+      - "18"
+    scriptarguments:
+      backupId:
+        simple: ${Veeam.VBR.get_restore_points.data.backupId}
+      backupObjectId:
+        simple: ${Veeam.VBR.general_api_request.data.[0].id}
+      continueScan:
+        simple: "false"
+      scanMode:
+        simple: MostRecent
+      useAntivirusEngine:
+        simple: "false"
+      useMostRecentPoint:
+        simple: "true"
+      useOldestPoint:
+        simple: "true"
+      useYaraRule:
+        simple: "true"
+      using:
+        simple: ${Please enter the Hostname.Answers.1}
+      yaraRule:
+        simple: ${YaraRule.Answers.0}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1435
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "17":
+    id: "17"
+    taskid: 429cabc4-053b-4a55-8873-29ac1362bf65
+    type: regular
+    task:
+      id: 429cabc4-053b-4a55-8873-29ac1362bf65
+      version: -1
+      name: Start AV Scan
+      description: Starts a Scan Backup session.
+      script: VBR REST API|||veeam-vbr-start-malware-backup-scan
+      type: regular
+      iscommand: true
+      brand: VBR REST API
+    nexttasks:
+      '#none#':
+      - "18"
+    scriptarguments:
+      backupId:
+        simple: ${Veeam.VBR.get_restore_points.data.backupId}
+      backupObjectId:
+        simple: ${Veeam.VBR.general_api_request.data.[0].id}
+      continueScan:
+        simple: "false"
+      scanMode:
+        simple: MostRecent
+      useAntivirusEngine:
+        simple: "true"
+      useMostRecentPoint:
+        simple: "true"
+      useOldestPoint:
+        simple: "true"
+      useYaraRule:
+        simple: "false"
+      using:
+        simple: ${Please enter the Hostname.Answers.1}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1435
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "18":
+    id: "18"
+    taskid: 0eb3dcdb-3f6f-4948-9104-b3bbcf33702b
+    type: playbook
+    task:
+      id: 0eb3dcdb-3f6f-4948-9104-b3bbcf33702b
+      version: -1
+      name: GenericPolling
+      playbookName: GenericPolling
+      type: playbook
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "19"
+    scriptarguments:
+      AdditionalPollingCommandArgNames:
+        simple: using
+      AdditionalPollingCommandArgValues:
+        simple: ${Please enter the Hostname.Answers.1}
+      Ids:
+        simple: ${Veeam.VBR.start_malware_backup_scan.id}
+      Interval:
+        simple: "1"
+      PollingCommandArgName:
+        simple: id_
+      PollingCommandName:
+        simple: veeam-vbr-get-session
+      Timeout:
+        simple: "120"
+      dt:
+        simple: Veeam.VBR.get_session(val.state != 'Stopped').id
+    separatecontext: true
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 0
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 1610
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "19":
+    id: "19"
+    taskid: 59021860-112e-4d29-aa5f-e6b404c9d30c
+    type: regular
+    task:
+      id: 59021860-112e-4d29-aa5f-e6b404c9d30c
+      version: -1
+      name: Get Session
+      description: Get Session.
+      script: VBR REST API|||veeam-vbr-get-session
+      type: regular
+      iscommand: true
+      brand: VBR REST API
+    nexttasks:
+      '#none#':
+      - "20"
+    scriptarguments:
+      id_:
+        simple: ${Veeam.VBR.start_malware_backup_scan.id}
+      using:
+        simple: ${Please enter the Hostname.Answers.1}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 1785
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "20":
+    id: "20"
+    taskid: 58c6b323-437e-4698-a1f5-00c90cc12552
+    type: condition
+    task:
+      id: 58c6b323-437e-4698-a1f5-00c90cc12552
+      version: -1
+      name: Check Session State
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "21"
+      "yes":
+      - "23"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: containsGeneral
+          left:
+            value:
+              simple: Veeam.VBR.get_session.result
+            iscontext: true
+          right:
+            value:
+              simple: Success
+        - operator: containsGeneral
+          left:
+            value:
+              simple: Veeam.VBR.get_session.result
+            iscontext: true
+          right:
+            value:
+              simple: Warning
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 1960
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "21":
+    id: "21"
+    taskid: b412ef6e-2ce7-489d-a15b-d8aeccd62f78
+    type: condition
+    task:
+      id: b412ef6e-2ce7-489d-a15b-d8aeccd62f78
+      version: -1
+      name: Failed
+      description: A failed session may indicate that suspicious files were detected
+        during the scan. Please review the logs for more details.
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      Finish:
+      - "9"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 2135
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "23":
+    id: "23"
+    taskid: 42bbeaaf-cc64-45ae-99a3-c2011f00ef05
+    type: title
+    task:
+      id: 42bbeaaf-cc64-45ae-99a3-c2011f00ef05
+      version: -1
+      name: Success
+      type: title
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "9"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 2142.5
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 2350,
+        "width": 1140,
+        "x": -280,
+        "y": 50
+      }
+    }
+  }
+inputs: []
+outputs: []
+sourceplaybookid: f617ab73-4d4f-46d5-8479-272e45c3ca12
