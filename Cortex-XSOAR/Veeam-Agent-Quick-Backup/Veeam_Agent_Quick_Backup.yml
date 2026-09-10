@@ -1,0 +1,683 @@
+id: f617ab73-4d4f-46d5-8479-272e45c3ca12
+version: 12
+vcShouldKeepItemLegacyProdMachine: false
+name: Veeam  - Agent Quick Backup
+starttaskid: "0"
+tasks:
+  "0":
+    id: "0"
+    taskid: 8555d4de-69bb-4d30-8067-7f7fe78c671e
+    type: start
+    task:
+      id: 8555d4de-69bb-4d30-8067-7f7fe78c671e
+      version: -1
+      name: ""
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "3"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 50
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "1":
+    id: "1"
+    taskid: d2d30a95-5e69-4b82-83ee-a214acb94a5f
+    type: regular
+    task:
+      id: d2d30a95-5e69-4b82-83ee-a214acb94a5f
+      version: -1
+      name: Get Agent Info
+      description: General API Request. Sends a generic HTTP request to any VBR REST
+        API endpoint.
+      script: VBR REST API|||veeam-vbr-general-api-request
+      type: regular
+      iscommand: true
+      brand: VBR REST API
+    nexttasks:
+      '#none#':
+      - "9"
+    scriptarguments:
+      method:
+        simple: get
+      path:
+        simple: /api/v1/agents/discoveredEntities?nameFilter=${Please enter the Hostname.Answers.0}
+      using:
+        simple: ${Please enter the Hostname.Answers.1}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 385
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 2
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "3":
+    id: "3"
+    taskid: 315a8232-5647-4c15-80e2-84881bb745e8
+    type: collection
+    task:
+      id: 315a8232-5647-4c15-80e2-84881bb745e8
+      version: -1
+      name: Query Agent Name
+      type: collection
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "1"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 210
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    message:
+      to: null
+      subject: null
+      body: null
+      methods: []
+      format: ""
+      bcc: null
+      cc: null
+      timings:
+        retriescount: 2
+        retriesinterval: 360
+        completeafterreplies: 1
+        completeafterv2: true
+        completeaftersla: false
+    form:
+      questions:
+      - id: "0"
+        label: ""
+        labelarg:
+          simple: hostname
+        required: true
+        gridcolumns: []
+        defaultrows: []
+        type: shortText
+        options: []
+        optionsarg: []
+        fieldassociated: ""
+        placeholder: ""
+        tooltip: ""
+        readonly: false
+      - id: "1"
+        label: ""
+        labelarg:
+          simple: VBR Instance
+        required: false
+        gridcolumns: []
+        defaultrows: []
+        type: singleSelect
+        options: []
+        optionsarg:
+        - complex:
+            root: modules
+            accessor: name
+        - {}
+        fieldassociated: ""
+        placeholder: ""
+        tooltip: VBR Instance to be used
+        readonly: false
+      title: Please enter the Hostname
+      description: ""
+      sender: ""
+      expired: false
+      totalanswers: 0
+    skipunavailable: false
+    quietmode: 2
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "7":
+    id: "7"
+    taskid: 72b98225-1a78-4857-8a9d-1ef07ddd3775
+    type: regular
+    task:
+      id: 72b98225-1a78-4857-8a9d-1ef07ddd3775
+      version: -1
+      name: Windows Agent Quick Backup
+      description: General API Request. Sends a generic HTTP request to any VBR REST
+        API endpoint.
+      script: VBR REST API|||veeam-vbr-general-api-request
+      type: regular
+      iscommand: true
+      brand: VBR REST API
+    nexttasks:
+      '#none#':
+      - "18"
+    scriptarguments:
+      data:
+        simple: |-
+          {
+            "id": "${Veeam.VBR.general_api_request.data.[0].id}",
+            "name": "${Please enter the Hostname.Answers.0}",
+            "type": "WindowsComputer",
+            "protectionGroupId": "${Veeam.VBR.general_api_request.data.[0].protectionGroupId}",
+            "platform": "Agent"
+          }
+      method:
+        simple: post
+      path:
+        simple: /api/v1/jobs/quickBackup/agent
+      using:
+        simple: ${Please enter the Hostname.Answers.1}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 735
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 2
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "8":
+    id: "8"
+    taskid: a2c85b6f-ce93-4078-8453-391f4a300b45
+    type: regular
+    task:
+      id: a2c85b6f-ce93-4078-8453-391f4a300b45
+      version: -1
+      name: Linux Agent Quick Backup
+      description: General API Request. Sends a generic HTTP request to any VBR REST
+        API endpoint.
+      script: VBR REST API|||veeam-vbr-general-api-request
+      type: regular
+      iscommand: true
+      brand: VBR REST API
+    nexttasks:
+      '#none#':
+      - "18"
+    scriptarguments:
+      data:
+        simple: |-
+          {
+            "id": "${Veeam.VBR.general_api_request.data.[0].id}",
+            "name": "${Please enter the Hostname.Answers.0}",
+            "type": "WindowsComputer",
+            "protectionGroupId": "${Veeam.VBR.general_api_request.data.[0].protectionGroupId}",
+            "platform": "Agent"
+          }
+      method:
+        simple: post
+      path:
+        simple: /api/v1/jobs/quickBackup/agent
+      using:
+        simple: ${Please enter the Hostname.Answers.1}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 735
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 2
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "9":
+    id: "9"
+    taskid: cb65a59b-1cfc-4363-8400-aa98f8511a01
+    type: condition
+    task:
+      id: cb65a59b-1cfc-4363-8400-aa98f8511a01
+      version: -1
+      name: Check Operating System
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      Linux:
+      - "8"
+      Windows:
+      - "7"
+    separatecontext: false
+    conditions:
+    - label: Linux
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: Veeam.VBR.general_api_request.data.[0].operatingSystem
+            iscontext: true
+          right:
+            value:
+              simple: Linux
+    - label: Windows
+      condition:
+      - - operator: isEqualString
+          left:
+            value:
+              simple: Veeam.VBR.general_api_request.data.[0].operatingSystem
+            iscontext: true
+          right:
+            value:
+              simple: Windows
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 560
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "11":
+    id: "11"
+    taskid: 25c02735-9a34-472e-8755-1ed40a591b29
+    type: playbook
+    task:
+      id: 25c02735-9a34-472e-8755-1ed40a591b29
+      version: -1
+      name: GenericPolling
+      description: |-
+        Use this playbook as a sub-playbook to block execution of the master playbook until a remote action is complete.
+        This playbook implements polling by continuously running the command in Step \#2 until the operation completes.
+        The remote action should have the following structure:
+
+        1. Initiate the operation.
+        2. Poll to check if the operation completed.
+        3. (optional) Get the results of the operation.
+
+        NOTE: This playbook should be run only when the playbook's context is using the "Private to sub-playbook" option.
+      playbookName: GenericPolling
+      type: playbook
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "12"
+    scriptarguments:
+      AdditionalPollingCommandArgNames:
+        simple: using
+      AdditionalPollingCommandArgValues:
+        simple: ${Please enter the Hostname.Answers.1}
+      Ids:
+        simple: ${SessionIdForPolling}
+      Interval:
+        simple: "1"
+      PollingCommandArgName:
+        simple: id_
+      PollingCommandName:
+        simple: veeam-vbr-get-session
+      Timeout:
+        simple: "120"
+      dt:
+        simple: Veeam.VBR.get_session(val.state != 'Stopped').id
+    separatecontext: true
+    continueonerrortype: ""
+    loop:
+      iscommand: false
+      exitCondition: ""
+      wait: 1
+      max: 100
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 1435
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 2
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "12":
+    id: "12"
+    taskid: 962ba17d-3f2a-4a51-870c-716b7e77e801
+    type: regular
+    task:
+      id: 962ba17d-3f2a-4a51-870c-716b7e77e801
+      version: -1
+      name: Get Session
+      description: Get Session.
+      script: VBR REST API|||veeam-vbr-get-session
+      type: regular
+      iscommand: true
+      brand: VBR REST API
+    nexttasks:
+      '#none#':
+      - "13"
+    scriptarguments:
+      id_:
+        simple: ${SessionIdForPolling}
+      using:
+        simple: ${Please enter the Hostname.Answers.1}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 1610
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "13":
+    id: "13"
+    taskid: 4923683c-2735-48aa-ad8e-04b908d3c057
+    type: condition
+    task:
+      id: 4923683c-2735-48aa-ad8e-04b908d3c057
+      version: -1
+      name: Check Session State
+      type: condition
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#default#':
+      - "14"
+      "yes":
+      - "15"
+    separatecontext: false
+    conditions:
+    - label: "yes"
+      condition:
+      - - operator: containsGeneral
+          left:
+            value:
+              simple: Veeam.VBR.get_session.result
+            iscontext: true
+          right:
+            value:
+              simple: Success
+        - operator: containsGeneral
+          left:
+            value:
+              simple: Veeam.VBR.get_session.result
+            iscontext: true
+          right:
+            value:
+              simple: Warning
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 1785
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "14":
+    id: "14"
+    taskid: c7e3a222-0a3c-4ab1-83e2-34f652e15104
+    type: title
+    task:
+      id: c7e3a222-0a3c-4ab1-83e2-34f652e15104
+      version: -1
+      name: Failed
+      type: title
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "16"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 50,
+          "y": 1960
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "15":
+    id: "15"
+    taskid: 97275c13-1f3e-4fbf-8d18-44ff1339eb25
+    type: title
+    task:
+      id: 97275c13-1f3e-4fbf-8d18-44ff1339eb25
+      version: -1
+      name: Success
+      type: title
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "16"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 480,
+          "y": 1960
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "16":
+    id: "16"
+    taskid: 0fea31a9-790f-4f30-829c-a4ec655387da
+    type: title
+    task:
+      id: 0fea31a9-790f-4f30-829c-a4ec655387da
+      version: -1
+      name: Done
+      type: title
+      iscommand: false
+      brand: ""
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 2120
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "17":
+    id: "17"
+    taskid: c2281fd5-7f34-490a-893e-e5fcf7da3048
+    type: regular
+    task:
+      id: c2281fd5-7f34-490a-893e-e5fcf7da3048
+      version: -1
+      name: Get Session by Job ID
+      description: General API Request. Looks up the most recent session for the job
+        that was just started, so we get an actual session ID to poll (the quick backup
+        call itself only returns a job ID, not a session ID).
+      script: VBR REST API|||veeam-vbr-general-api-request
+      type: regular
+      iscommand: true
+      brand: VBR REST API
+    nexttasks:
+      '#none#':
+      - "19"
+    scriptarguments:
+      method:
+        simple: get
+      path:
+        simple: /api/v1/sessions?jobIdFilter=${Veeam.VBR.general_api_request.id}&orderColumn=CreationTime&orderAsc=false&limit=1
+      using:
+        simple: ${Please enter the Hostname.Answers.1}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 1085
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "18":
+    id: "18"
+    taskid: 46af3bca-5ae1-4e2c-8228-74a6108b3b56
+    type: regular
+    task:
+      id: 46af3bca-5ae1-4e2c-8228-74a6108b3b56
+      version: -1
+      name: Sleep
+      description: Sleep for X seconds. Gives the session time to actually be created
+        and reach a Starting/Running state before we look it up by job ID.
+      scriptName: Sleep
+      type: regular
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "17"
+    scriptarguments:
+      seconds:
+        simple: "10"
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 910
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+  "19":
+    id: "19"
+    taskid: 8b07ad07-e59a-4db8-8ae4-4170179f2b08
+    type: regular
+    task:
+      id: 8b07ad07-e59a-4db8-8ae4-4170179f2b08
+      version: -1
+      name: Set Session ID for Polling
+      description: Copies the session ID returned by "Get Session by Job ID" into
+        its own context key (SessionIdForPolling). Veeam.VBR.general_api_request accumulates
+        one entry per call made during this playbook run (Get Agent Info, then this
+        call). ".[-1]" selects only the most recent entry - this call's own result
+        - so GenericPolling and the later Get Session task get exactly one ID (the
+        session), not the agent ID mixed in as well.
+      scriptName: Set
+      type: regular
+      iscommand: false
+      brand: ""
+    nexttasks:
+      '#none#':
+      - "11"
+    scriptarguments:
+      append:
+        simple: "false"
+      key:
+        simple: SessionIdForPolling
+      value:
+        simple: ${Veeam.VBR.general_api_request.[2].data.[0].id}
+    separatecontext: false
+    continueonerrortype: ""
+    view: |-
+      {
+        "position": {
+          "x": 265,
+          "y": 1260
+        }
+      }
+    note: false
+    timertriggers: []
+    ignoreworker: false
+    skipunavailable: false
+    quietmode: 0
+    isoversize: false
+    isautoswitchedtoquietmode: false
+view: |-
+  {
+    "linkLabelsPosition": {},
+    "paper": {
+      "dimensions": {
+        "height": 2130,
+        "width": 810,
+        "x": 50,
+        "y": 50
+      }
+    }
+  }
+inputs: []
+outputs: []
+dirtyInputs: true
