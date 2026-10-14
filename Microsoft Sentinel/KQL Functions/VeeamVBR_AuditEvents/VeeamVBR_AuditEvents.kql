@@ -82,10 +82,8 @@ Syslog
     summarize Fields = make_bag(bag_pack(tostring(Pair[0]),
         replace_regex(tostring(Pair[1]), @'\\(["\\\]])', @'\1')))
   )
-| join kind=leftouter EventNames on EventId
+| join kind=inner EventNames on EventId
 | extend
-    EventName = coalesce(EventName, "Other"),
-    Category  = coalesce(Category, "Other"),
     User      = coalesce(tostring(Fields.UserName), tostring(Fields.FriendlyName),
                          tostring(Fields.UserFullInfo), tostring(Fields.InitiatorFullInfo)),
     UserSid   = tostring(Fields.Subject),
@@ -99,4 +97,3 @@ Syslog
     Message   = tostring(Fields.Description)
 | project EventTime, VbrServer, EventId, EventName, Category, SeverityLevel,
           User, UserSid, SourceIp, Object, Operation, Reason, Message, Fields, VbrVersion
-
