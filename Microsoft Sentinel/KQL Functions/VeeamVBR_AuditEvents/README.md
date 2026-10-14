@@ -4,7 +4,7 @@ Veeam Backup & Replication can send its events to the Veeam App for Microsoft Se
 
 The KQL function `VeeamVBR_AuditEvents` turns those raw messages into a clean, readable table. For each Veeam event it pulls out the event ID and gives it a plain name, for example "User Authorization Denied" or "Restore Point Deleted". It sorts each event into a category such as Access, MFA, Users, Four-Eyes, Deletion, Credentials, Malware, Restore or Config. It also adds separate columns for the most important details: who did it (user and SID), from where (source IP address), on what (VM, job or object), the operation, the reason and the full message. All remaining details stay available in one extra column, so nothing is lost.
 
-The event list covers 71 events that matter for security and compliance. Any other Veeam event still shows up, marked as "Other".
+The event list covers 71 events that matter for security and compliance. 
 
 ## Where it helps
 
